@@ -14,6 +14,7 @@ from .crawler import SpiderNix
 from .browser import BrowserCrawler
 from .proxy import ProxyRotator, fetch_public_proxies
 from .storage import get_storage
+from .osint import DNSResolver, WHOISLookup, SubdomainEnumerator, PortScanner
 
 app = typer.Typer(
     name="spider-nix",
@@ -166,6 +167,331 @@ def proxy_stats(
 def version():
     """Show version."""
     console.print(f"[bold]SpiderNix v{__version__}[/]")
+
+
+# OSINT Reconnaissance commands
+recon_app = typer.Typer(
+    name="recon",
+    help="🔍 OSINT reconnaissance commands (DNS, WHOIS, subdomains)",
+)
+app.add_typer(recon_app, name="recon")
+
+
+@recon_app.command("dns")
+def recon_dns(
+    domain: str = typer.Argument(..., help="Domain to query"),
+    record_type: Optional[str] = typer.Option(None, "--type", "-t", help="Specific record type (A, AAAA, MX, TXT, NS, CNAME, SOA)"),
+    nameservers: Optional[str] = typer.Option(None, "--nameservers", "-n", help="Custom DNS servers (comma-separated)"),
+    reverse: Optional[str] = typer.Option(None, "--reverse", "-r", help="Reverse DNS lookup for IP"),
+):
+    """Perform DNS enumeration."""
+
+    console.print(f"\n[bold]🔍 DNS Reconnaissance: {domain or reverse}[/]\n")
+
+    async def run():
+        ns = nameservers.split(",") if nameservers else None
+        resolver = DNSResolver(nameservers=ns)
+
+        if reverse:
+            # Reverse DNS
+            hostname = await resolver.reverse_dns(reverse)
+            if hostname:
+                console.print(f"[green]{reverse} -> {hostname}[/]")
+            else:
+                console.print(f"[red]No PTR record found for {reverse}[/]")
+            return
+
+        if record_type:
+            # Query specific type
+            rtype = record_type.upper()
+            query_map = {
+                "A": resolver.query_a,
+                "AAAA": resolver.query_aaaa,
+                "MX": resolver.query_mx,
+                "TXT": resolver.query_txt,
+                "NS": resolver.query_ns,
+                "CNAME": resolver.query_cname,
+                "SOA": resolver.query_soa,
+            }
+
+            if rtype not in query_map:
+                console.print(f"[red]Invalid record type: {rtype}[/]")
+                return
+
+            records = await query_map[rtype](domain)
+            if records:
+                table = Table(title=f"{rtype} Records")
+                table.add_column("Value", style="cyan")
+                table.add_column("TTL", style="yellow")
+
+                for record in records:
+                    table.add_row(str(record.value), str(record.ttl or "-"))
+
+                console.print(table)
+            else:
+                console.print(f"[yellow]No {rtype} records found[/]")
+        else:
+            # Query all types
+            all_records = await resolver.query_all(domain)
+
+            if not all_records:
+                console.print(f"[yellow]No DNS records found for {domain}[/]")
+                return
+
+            for rec_type, records in all_records.items():
+                table = Table(title=f"{rec_type} Records")
+                table.add_column("Value", style="cyan")
+                table.add_column("TTL", style="yellow")
+
+                for record in records:
+                    value = str(record.value)
+                    if len(value) > 80:
+                        value = value[:77] + "..."
+                    table.add_row(value, str(record.ttl or "-"))
+
+                console.print(table)
+                console.print()
+
+    asyncio.run(run())
+    console.print("[green]✓ DNS enumeration complete[/]")
+
+
+@recon_app.command("whois")
+def recon_whois(
+    domain: str = typer.Argument(..., help="Domain to lookup"),
+    show_raw: bool = typer.Option(False, "--raw", help="Show raw WHOIS data"),
+):
+    """Perform WHOIS lookup."""
+
+    console.print(f"\n[bold]🔍 WHOIS Lookup: {domain}[/]\n")
+
+    async def run():
+        result = await WHOISLookup.lookup(domain)
+
+        if not result:
+            console.print(f"[red]WHOIS lookup failed for {domain}[/]")
+            return
+
+        # Display structured data
+        table = Table(title="WHOIS Information")
+        table.add_column("Field", style="cyan")
+        table.add_column("Value", style="white")
+
+        fields = [
+            ("Domain", result.domain),
+            ("Registrar", result.registrar),
+            ("Organization", result.org),
+            ("Country", result.country),
+            ("Creation Date", result.creation_date),
+            ("Expiration Date", result.expiration_date),
+            ("Updated Date", result.updated_date),
+            ("Status", result.status),
+            ("Name Servers", result.name_servers),
+            ("DNSSEC", result.dnssec),
+            ("Emails", result.emails),
+        ]
+
+        for field, value in fields:
+            if value:
+                if isinstance(value, list):
+                    value = ", ".join(str(v) for v in value[:3])
+                    if len(result.__dict__.get(field.lower().replace(" ", "_")) or []) > 3:
+                        value += "..."
+                table.add_row(field, str(value))
+
+        console.print(table)
+
+        if show_raw and result.raw:
+            console.print("\n[bold]Raw WHOIS Data:[/]")
+            console.print(result.raw[:1000])
+
+    asyncio.run(run())
+    console.print("\n[green]✓ WHOIS lookup complete[/]")
+
+
+@recon_app.command("subdomains")
+def recon_subdomains(
+    domain: str = typer.Argument(..., help="Domain to enumerate"),
+    use_crt: bool = typer.Option(True, "--crt/--no-crt", help="Use Certificate Transparency"),
+    use_bruteforce: bool = typer.Option(True, "--bruteforce/--no-bruteforce", help="Use DNS bruteforce"),
+    wordlist: Optional[Path] = typer.Option(None, "--wordlist", "-w", help="Custom wordlist file"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    max_concurrent: int = typer.Option(50, "--concurrent", "-c", help="Max concurrent DNS queries"),
+):
+    """Discover subdomains."""
+
+    console.print(f"\n[bold]🔍 Subdomain Enumeration: {domain}[/]\n")
+
+    async def run():
+        # Load custom wordlist if provided
+        custom_wordlist = None
+        if wordlist:
+            with open(wordlist) as f:
+                custom_wordlist = [line.strip() for line in f if line.strip()]
+            console.print(f"[cyan]Loaded {len(custom_wordlist)} entries from wordlist[/]")
+
+        async with SubdomainEnumerator(max_concurrent=max_concurrent) as enumerator:
+            console.print("[yellow]Enumerating subdomains...[/]")
+
+            if use_crt:
+                console.print("[cyan]→ Querying Certificate Transparency logs...[/]")
+            if use_bruteforce:
+                console.print(f"[cyan]→ Bruteforcing with {len(custom_wordlist or enumerator.DEFAULT_SUBDOMAINS)} subdomains...[/]")
+
+            results = await enumerator.enumerate(
+                domain,
+                use_crt=use_crt,
+                use_bruteforce=use_bruteforce,
+                wordlist=custom_wordlist,
+            )
+
+            if not results:
+                console.print(f"[yellow]No subdomains found for {domain}[/]")
+                return
+
+            # Display results
+            table = Table(title=f"Discovered Subdomains ({len(results)})")
+            table.add_column("Subdomain", style="cyan")
+            table.add_column("IP Addresses", style="green")
+            table.add_column("Source", style="yellow")
+
+            for result in results:
+                ips = ", ".join(result.ip_addresses[:2])
+                if len(result.ip_addresses) > 2:
+                    ips += f" +{len(result.ip_addresses) - 2}"
+                table.add_row(result.subdomain, ips or "-", result.source)
+
+            console.print(table)
+
+            # Save to file if requested
+            if output:
+                import json
+                data = [
+                    {
+                        "subdomain": r.subdomain,
+                        "ip_addresses": r.ip_addresses,
+                        "source": r.source,
+                        "alive": r.alive,
+                        "timestamp": r.timestamp.isoformat(),
+                    }
+                    for r in results
+                ]
+
+                with open(output, "w") as f:
+                    json.dump(data, f, indent=2)
+
+                console.print(f"\n[green]Saved to: {output}[/]")
+
+    asyncio.run(run())
+    console.print("\n[green]✓ Subdomain enumeration complete[/]")
+
+
+@recon_app.command("portscan")
+def recon_portscan(
+    target: str = typer.Argument(..., help="Target host/IP"),
+    ports: Optional[str] = typer.Option(None, "--ports", "-p", help="Ports to scan (e.g., 80,443 or 1-1000)"),
+    common: bool = typer.Option(False, "--common", "-c", help="Scan common ports only"),
+    protocol: str = typer.Option("tcp", "--protocol", help="Protocol: tcp, udp, or both"),
+    timeout: float = typer.Option(2.0, "--timeout", "-t", help="Connection timeout in seconds"),
+    concurrent: int = typer.Option(100, "--concurrent", help="Max concurrent scans"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+):
+    """Scan ports on target host."""
+
+    console.print(f"\n[bold]🔍 Port Scan: {target}[/]\n")
+
+    async def run():
+        scanner = PortScanner(
+            timeout=timeout,
+            max_concurrent=concurrent,
+        )
+
+        # Parse ports
+        port_list = None
+        if ports:
+            # Handle ranges (e.g., "1-1000") or comma-separated (e.g., "80,443,8080")
+            if "-" in ports:
+                start, end = map(int, ports.split("-", 1))
+                console.print(f"[cyan]Scanning ports {start}-{end} ({protocol})...[/]")
+                result = await scanner.scan_range(target, start, end, protocol)
+            else:
+                port_list = [int(p.strip()) for p in ports.split(",")]
+                console.print(f"[cyan]Scanning {len(port_list)} ports ({protocol})...[/]")
+                result = await scanner.scan_ports(target, port_list, protocol)
+        elif common:
+            console.print(f"[cyan]Scanning common ports ({protocol})...[/]")
+            result = await scanner.scan_common_ports(target, protocol)
+        else:
+            # Default: scan top 100 ports
+            from spider_nix.osint.scanner import COMMON_PORTS
+            port_list = list(COMMON_PORTS.keys())
+            console.print(f"[cyan]Scanning {len(port_list)} common ports ({protocol})...[/]")
+            result = await scanner.scan_ports(target, port_list, protocol)
+
+        if not result.results:
+            console.print(f"[yellow]No results from scan[/]")
+            return
+
+        # Display open ports
+        open_ports = [r for r in result.results if r.state == "open"]
+
+        if open_ports:
+            table = Table(title=f"Open Ports on {target} ({len(open_ports)})")
+            table.add_column("Port", style="cyan")
+            table.add_column("Protocol", style="yellow")
+            table.add_column("Service", style="green")
+            table.add_column("Version", style="white")
+            table.add_column("Banner", style="dim")
+
+            for port_result in open_ports:
+                banner = (port_result.banner[:50] + "...") if port_result.banner and len(port_result.banner) > 50 else (port_result.banner or "-")
+                table.add_row(
+                    str(port_result.port),
+                    port_result.protocol,
+                    port_result.service or "unknown",
+                    port_result.version or "-",
+                    banner,
+                )
+
+            console.print(table)
+        else:
+            console.print("[yellow]No open ports found[/]")
+
+        # Summary
+        console.print(
+            f"\n[bold]Summary:[/] {result.ports_open} open, "
+            f"{result.ports_closed} closed, {result.ports_filtered} filtered "
+            f"({result.scan_time_ms:.0f}ms)"
+        )
+
+        # Save to file if requested
+        if output:
+            import json
+            data = {
+                "host": result.host,
+                "scan_time_ms": result.scan_time_ms,
+                "ports_scanned": result.ports_scanned,
+                "ports_open": result.ports_open,
+                "open_ports": [
+                    {
+                        "port": r.port,
+                        "protocol": r.protocol,
+                        "service": r.service,
+                        "version": r.version,
+                        "banner": r.banner,
+                        "timestamp": r.timestamp.isoformat(),
+                    }
+                    for r in open_ports
+                ],
+            }
+
+            with open(output, "w") as f:
+                json.dump(data, f, indent=2)
+
+            console.print(f"\n[green]Saved to: {output}[/]")
+
+    asyncio.run(run())
+    console.print("\n[green]✓ Port scan complete[/]")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,49 @@
+"""
+OSINT (Open Source Intelligence) module for SpiderNix.
+
+This module provides active reconnaissance capabilities including:
+- DNS enumeration and analysis
+- WHOIS lookups
+- Subdomain discovery
+- Content analysis and data extraction
+- Port scanning and service detection
+- Vulnerability assessment
+- External API integrations
+- Correlation and graph analysis
+"""
+
+from .reconnaissance import DNSResolver, WHOISLookup, SubdomainEnumerator
+from .analyzer import ContentAnalyzer, TechnologyDetector, ContactHarvester, APIDiscovery
+from .scanner import PortScanner, ServiceDetector
+from .vulnerability import VulnerabilityScanner, SecurityHeadersChecker, CVEMatcher
+from .integrations import ShodanClient, URLScanClient, VirusTotalClient, OSINTAggregator
+from .correlator import CorrelationEngine, IntelligenceGraph, Entity, Relationship
+
+__all__ = [
+    # Reconnaissance
+    "DNSResolver",
+    "WHOISLookup",
+    "SubdomainEnumerator",
+    # Analysis
+    "ContentAnalyzer",
+    "TechnologyDetector",
+    "ContactHarvester",
+    "APIDiscovery",
+    # Scanning
+    "PortScanner",
+    "ServiceDetector",
+    # Vulnerability
+    "VulnerabilityScanner",
+    "SecurityHeadersChecker",
+    "CVEMatcher",
+    # Integrations
+    "ShodanClient",
+    "URLScanClient",
+    "VirusTotalClient",
+    "OSINTAggregator",
+    # Correlation
+    "CorrelationEngine",
+    "IntelligenceGraph",
+    "Entity",
+    "Relationship",
+]

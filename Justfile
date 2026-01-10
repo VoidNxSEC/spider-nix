@@ -7,11 +7,17 @@ default:
 
 # Install the package in editable mode
 install:
-    pip install -e .
+    uv venv
+    uv pip install -e ".[dev]"
 
 # Run the test suite
 test:
-    pytest tests/
+    python -m pytest tests/
+
+# Run linters and checks
+check:
+    ruff check .
+    ruff format --check .
 
 # Run the crawler (example)
 run url *args:

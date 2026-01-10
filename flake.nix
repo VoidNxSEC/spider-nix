@@ -25,6 +25,11 @@
             aiosqlite
             pydantic
 
+            # OSINT
+            aiodns
+            pycares
+            python-whois
+
             # CLI
             typer
             rich
@@ -50,6 +55,7 @@
             playwright-driver.browsers
             nodePackages.npm
             just
+            uv
           ];
 
           shellHook = ''
@@ -57,10 +63,15 @@
             export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
             export PYTHONPATH="$PWD/src:$PYTHONPATH"
 
+            if [ -d ".venv" ]; then
+                source .venv/bin/activate
+            fi
+
             echo "🕷️  SpiderNix Development Environment"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "Python: $(python --version)"
             echo "Just:   $(just --version)"
+            echo "uv:     $(uv --version)"
             echo ""
             echo "Commands:"
             echo "  just install            Install spider-nix (editable)"
@@ -87,6 +98,9 @@
             aiohttp
             aiosqlite
             pydantic
+            aiodns
+            pycares
+            python-whois
             typer
             rich
             fake-useragent

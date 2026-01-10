@@ -94,7 +94,10 @@ class StealthEngine:
     def get_playwright_stealth_script(self) -> str:
         """JavaScript to inject for Playwright stealth."""
         fingerprint = self.get_fingerprint()
-        
+
+        # Generate noise seed for Canvas 2D
+        canvas_noise = self._rng.random() * 0.0001
+
         return f"""
         // Override navigator properties
         Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined }});
@@ -102,12 +105,12 @@ class StealthEngine:
         Object.defineProperty(navigator, 'platform', {{ get: () => '{fingerprint["platform"]}' }});
         Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => {fingerprint["hardwareConcurrency"]} }});
         Object.defineProperty(navigator, 'deviceMemory', {{ get: () => {fingerprint["deviceMemory"]} }});
-        
+
         // Override screen
         Object.defineProperty(screen, 'width', {{ get: () => {fingerprint["screen"]["width"]} }});
         Object.defineProperty(screen, 'height', {{ get: () => {fingerprint["screen"]["height"]} }});
         Object.defineProperty(screen, 'colorDepth', {{ get: () => {fingerprint["screen"]["colorDepth"]} }});
-        
+
         // Override WebGL
         const getParameter = WebGLRenderingContext.prototype.getParameter;
         WebGLRenderingContext.prototype.getParameter = function(parameter) {{
@@ -115,7 +118,40 @@ class StealthEngine:
             if (parameter === 37446) return '{fingerprint["webgl"]["renderer"]}';
             return getParameter.call(this, parameter);
         }};
-        
+
+        // Canvas 2D fingerprinting protection - add subtle noise
+        const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+        const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+
+        const canvasNoise = {canvas_noise};
+
+        // Add noise to toDataURL (most common fingerprinting method)
+        HTMLCanvasElement.prototype.toDataURL = function() {{
+            const context = this.getContext('2d');
+            if (context) {{
+                const imageData = context.getImageData(0, 0, this.width, this.height);
+                for (let i = 0; i < imageData.data.length; i += 4) {{
+                    // Add subtle noise to RGB channels
+                    imageData.data[i] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
+                    imageData.data[i + 1] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
+                    imageData.data[i + 2] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
+                }}
+                context.putImageData(imageData, 0, 0);
+            }}
+            return originalToDataURL.apply(this, arguments);
+        }};
+
+        // Add noise to getImageData
+        CanvasRenderingContext2D.prototype.getImageData = function() {{
+            const imageData = originalGetImageData.apply(this, arguments);
+            for (let i = 0; i < imageData.data.length; i += 4) {{
+                imageData.data[i] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
+                imageData.data[i + 1] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
+                imageData.data[i + 2] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
+            }}
+            return imageData;
+        }};
+
         // Disable automation flags
         delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
         delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
