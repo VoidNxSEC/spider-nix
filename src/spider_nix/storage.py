@@ -6,7 +6,7 @@ import aiosqlite
 from pathlib import Path
 from typing import Any
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @dataclass 
@@ -18,7 +18,7 @@ class CrawlResult:
     content: str
     headers: dict[str, str] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
     def to_dict(self) -> dict[str, Any]:
         return {
