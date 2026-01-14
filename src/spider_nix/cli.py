@@ -15,6 +15,7 @@ from .browser import BrowserCrawler
 from .proxy import ProxyRotator, fetch_public_proxies
 from .storage import get_storage
 from .osint import DNSResolver, WHOISLookup, SubdomainEnumerator, PortScanner
+from .intel.jobs import CareerPageFinder, JobAnalyzer, JobOpportunity
 
 app = typer.Typer(
     name="spider-nix",
@@ -492,6 +493,107 @@ def recon_portscan(
 
     asyncio.run(run())
     console.print("\n[green]✓ Port scan complete[/]")
+
+
+@app.command("job-hunt")
+def job_hunt(
+    domain: str = typer.Argument(..., help="Company domain to scan (e.g. google.com)"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    pages: int = typer.Option(5, "--pages", "-p", help="Max pages to crawl per career site"),
+):
+    """Find and analyze job opportunities."""
+    
+    console.print(f"\n[bold]💼 Job Hunt: {domain}[/]\n")
+    
+    async def run():
+        # 1. Find Career Pages
+        console.print("[yellow]Finding career pages...[/]")
+        finder = CareerPageFinder()
+        career_urls = await finder.find(domain)
+        
+        if not career_urls:
+            console.print(f"[red]No career pages found for {domain}[/]")
+            return
+
+        console.print(f"[green]Found {len(career_urls)} potential career sites:[/]")
+        for url in career_urls:
+            console.print(f"  - {url}")
+
+        # 2. Crawl and Analyze
+        console.print(f"\n[yellow]Scanning for opportunities (max {pages} pages each)...[/]")
+        analyzer = JobAnalyzer()
+        opportunities = []
+        
+        # Configure spider for this task
+        config = CrawlerConfig()
+        config.max_requests_per_crawl = pages
+        config.max_concurrent_requests = 5
+        spider = SpiderNix(config=config)
+        
+        for start_url in career_urls:
+            console.print(f"[cyan]Scanning {start_url}...[/]")
+            results = await spider.crawl(
+                start_url, 
+                max_pages=pages,
+                follow_links=True,
+                # Filter to keep within career sections usually
+                link_filter=lambda x: any(k in x for k in ["career", "job", "position", "opening", "apply"])
+            )
+            
+            for result in results:
+                opp = analyzer.analyze_opportunity(result)
+                if opp:
+                    opportunities.append(opp)
+
+        # 3. Report
+        if not opportunities:
+            console.print(f"\n[yellow]No specific job opportunities identified.[/]")
+            return
+
+        # Sort by score
+        opportunities.sort(key=lambda x: x.score, reverse=True)
+        
+        table = Table(title=f"Job Opportunities at {domain} ({len(opportunities)})")
+        table.add_column("Title", style="green")
+        table.add_column("Seniority", style="cyan")
+        table.add_column("Remote", style="magenta")
+        table.add_column("Tech Stack", style="yellow")
+        table.add_column("Score", style="white")
+        table.add_column("URL", style="dim")
+
+        for opp in opportunities:
+            table.add_row(
+                opp.title or "Unknown Title",
+                opp.seniority or "-",
+                opp.remote_policy or "-",
+                ", ".join(opp.tech_stack[:3]),
+                f"{opp.score:.1f}",
+                opp.url
+            )
+            
+        console.print(table)
+        
+        if output:
+            import json
+            data = [
+                {
+                    "company": o.company,
+                    "title": o.title,
+                    "url": o.url,
+                    "seniority": o.seniority,
+                    "remote": o.remote_policy,
+                    "salary": o.salary_range,
+                    "tech": o.tech_stack,
+                    "score": o.score
+                }
+                for o in opportunities
+            ]
+            with open(output, "w") as f:
+                json.dump(data, f, indent=2)
+            console.print(f"\n[green]Saved to: {output}[/]")
+
+    asyncio.run(run())
+    console.print("\n[green]✓ Job hunt complete[/]")
 
 
 if __name__ == "__main__":
