@@ -7,3 +7,28 @@ build/
 dist/
 .env
 .venv
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
+coverage.json
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+
+# Security
+.bandit
+bandit-report.json
+safety-report.json
+pip-audit-report.json
+
+# Pre-commit
+.pre-commit-cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

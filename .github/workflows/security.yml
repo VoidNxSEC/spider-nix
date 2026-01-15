@@ -1,0 +1,115 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    # Portfolio Value: Demonstrates proactive security monitoring
+    - cron: '0 0 * * 1'
+
+jobs:
+  # Job 1: SAST with Bandit
+  # Portfolio Value: Static Application Security Testing shows security awareness
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit security scan
+        run: |
+          bandit -r src/ -f json -o bandit-report.json || true
+          bandit -r src/ -f screen
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+
+  # Job 2: Dependency Vulnerability Scanning
+  # Portfolio Value: Demonstrates supply chain security awareness
+  dependency-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Install security scanners
+        run: pip install safety pip-audit
+
+      - name: Run Safety check
+        continue-on-error: true
+        run: safety check --json --output safety-report.json || true
+
+      - name: Run pip-audit
+        continue-on-error: true
+        run: pip-audit --format json --output pip-audit-report.json || true
+
+      - name: Display Safety results
+        run: |
+          if [ -f safety-report.json ]; then
+            echo "Safety scan completed. Check artifacts for details."
+          fi
+
+      - name: Display pip-audit results
+        run: |
+          if [ -f pip-audit-report.json ]; then
+            echo "pip-audit scan completed. Check artifacts for details."
+          fi
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-security-reports
+          path: |
+            safety-report.json
+            pip-audit-report.json
+
+  # Job 3: Secret Scanning
+  # Portfolio Value: Prevents credential leaks, shows security best practices
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for secret scanning
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job 4: Ruff Security Checks
+  # Portfolio Value: Fast security linting integrated with modern Python tooling
+  ruff-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff security checks
+        run: ruff check . --select S  # S = flake8-bandit rules

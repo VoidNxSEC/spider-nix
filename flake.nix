@@ -40,7 +40,10 @@
             # Dev
             pytest
             pytest-asyncio
+            pytest-cov
             ruff
+            mypy
+            bandit
             pip
           ]
         );
@@ -56,6 +59,8 @@
             nodePackages.npm
             just
             uv
+            pre-commit
+            git
           ];
 
           shellHook = ''
@@ -76,6 +81,11 @@
             echo "Commands:"
             echo "  just install            Install spider-nix (editable)"
             echo "  just test               Run tests"
+            echo "  just test-cov           Run tests with coverage"
+            echo "  just hooks-install      Install pre-commit hooks"
+            echo "  just security           Run security scans"
+            echo "  just typecheck          Run type checking"
+            echo "  just ci-local           Simulate full CI locally"
             echo "  just run <url>          Run crawler"
             echo "  just proxies            Fetch proxies"
             echo "  just clean              Clean artifacts"
