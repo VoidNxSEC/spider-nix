@@ -28,12 +28,19 @@ class ProxyStats:
 
 @dataclass
 class ProxyRotator:
-    """Intelligent proxy rotation with health tracking."""
-    
+    """Intelligent proxy rotation with health tracking.
+
+    Supports both direct proxies and spider-network-proxy (Go uTLS proxy).
+    When using spider-network-proxy, set use_network_proxy=True and provide
+    the proxy URL (default: http://localhost:8080).
+    """
+
     proxies: list[str] = field(default_factory=list)
     strategy: Literal["round_robin", "random", "least_used", "best_performer"] = "random"
     rotate_on_block: bool = True
-    
+    use_network_proxy: bool = False  # Use spider-network-proxy (Go uTLS)
+    network_proxy_url: str = "http://localhost:8080"  # Go proxy endpoint
+
     _current_index: int = field(default=0, init=False)
     _stats: dict[str, ProxyStats] = field(default_factory=dict, init=False)
     
@@ -54,27 +61,36 @@ class ProxyRotator:
             del self._stats[url]
     
     def get_next(self) -> str | None:
-        """Get next proxy based on strategy."""
+        """Get next proxy based on strategy.
+
+        If use_network_proxy=True, returns the Go proxy URL which handles
+        TLS fingerprinting and provides additional anti-detection.
+        """
+        # If using spider-network-proxy, always return it
+        if self.use_network_proxy:
+            return self.network_proxy_url
+
+        # Standard proxy rotation
         healthy = [p for p in self.proxies if self._stats[p].is_healthy]
         if not healthy:
             healthy = self.proxies  # Fallback to all
-        
+
         if not healthy:
             return None
-        
+
         if self.strategy == "round_robin":
             self._current_index = (self._current_index + 1) % len(healthy)
             return healthy[self._current_index]
-        
+
         elif self.strategy == "random":
             return random.choice(healthy)
-        
+
         elif self.strategy == "least_used":
             return min(healthy, key=lambda p: self._stats[p].requests)
-        
+
         elif self.strategy == "best_performer":
             return max(healthy, key=lambda p: self._stats[p].success_rate)
-        
+
         return healthy[0]
     
     def report_success(self, proxy: str, response_ms: float) -> None:
@@ -111,6 +127,29 @@ class ProxyRotator:
         with open(filepath) as f:
             proxies = [line.strip() for line in f if line.strip() and not line.startswith("#")]
         return cls(proxies=proxies, **kwargs)
+
+    @classmethod
+    def with_network_proxy(cls, network_proxy_url: str = "http://localhost:8080") -> "ProxyRotator":
+        """Create rotator configured to use spider-network-proxy (Go uTLS).
+
+        Args:
+            network_proxy_url: URL of spider-network-proxy server
+
+        Returns:
+            ProxyRotator configured for network proxy
+
+        Example:
+            ```python
+            # Use Go proxy with TLS fingerprinting
+            rotator = ProxyRotator.with_network_proxy()
+            proxy_url = rotator.get_next()  # Returns http://localhost:8080
+            ```
+        """
+        return cls(
+            proxies=[],
+            use_network_proxy=True,
+            network_proxy_url=network_proxy_url,
+        )
 
 
 # Public proxy sources (for testing - not reliable for production)

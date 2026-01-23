@@ -10,14 +10,40 @@ This module provides active reconnaissance capabilities including:
 - Vulnerability assessment
 - External API integrations
 - Correlation and graph analysis
+- Advanced web discovery (GraphQL, forms, directories)
+- Web intelligence (structured data, sitemaps, archives)
 """
 
 from .reconnaissance import DNSResolver, WHOISLookup, SubdomainEnumerator
-from .analyzer import ContentAnalyzer, TechnologyDetector, ContactHarvester, APIDiscovery
+from .analyzer import ContentAnalyzer, TechnologyDetector, ContactHarvester, APIDiscovery, EnhancedTechStack
 from .scanner import PortScanner, ServiceDetector
 from .vulnerability import VulnerabilityScanner, SecurityHeadersChecker, CVEMatcher
 from .integrations import ShodanClient, URLScanClient, VirusTotalClient, OSINTAggregator
 from .correlator import CorrelationEngine, IntelligenceGraph, Entity, Relationship
+from .web_discovery import (
+    GraphQLEndpoint,
+    GraphQLDiscovery,
+    FormField,
+    FormAnalysis,
+    FormAnalyzer,
+    DirectoryEntry,
+    DirectoryBruteforcer,
+    WellKnownResource,
+    WellKnownScanner,
+)
+from .web_intelligence import (
+    StructuredData,
+    StructuredDataExtractor,
+    SitemapURL,
+    SitemapAnalysis,
+    SitemapParser,
+    RobotsRule,
+    RobotsAnalysis,
+    RobotsTxtAnalyzer,
+    ArchiveSnapshot,
+    ArchiveTimeline,
+    WebArchiveClient,
+)
 
 __all__ = [
     # Reconnaissance
@@ -29,6 +55,7 @@ __all__ = [
     "TechnologyDetector",
     "ContactHarvester",
     "APIDiscovery",
+    "EnhancedTechStack",
     # Scanning
     "PortScanner",
     "ServiceDetector",
@@ -46,4 +73,26 @@ __all__ = [
     "IntelligenceGraph",
     "Entity",
     "Relationship",
+    # Web Discovery
+    "GraphQLEndpoint",
+    "GraphQLDiscovery",
+    "FormField",
+    "FormAnalysis",
+    "FormAnalyzer",
+    "DirectoryEntry",
+    "DirectoryBruteforcer",
+    "WellKnownResource",
+    "WellKnownScanner",
+    # Web Intelligence
+    "StructuredData",
+    "StructuredDataExtractor",
+    "SitemapURL",
+    "SitemapAnalysis",
+    "SitemapParser",
+    "RobotsRule",
+    "RobotsAnalysis",
+    "RobotsTxtAnalyzer",
+    "ArchiveSnapshot",
+    "ArchiveTimeline",
+    "WebArchiveClient",
 ]

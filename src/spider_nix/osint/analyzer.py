@@ -26,6 +26,21 @@ class TechStack:
 
 
 @dataclass
+class EnhancedTechStack:
+    """Enhanced technology detection with version and CDN information."""
+
+    name: str
+    category: str  # framework, library, cdn, build_tool, server, etc
+    version: str | None = None
+    latest_version: str | None = None
+    outdated: bool = False
+    confidence: float = 1.0
+    evidence: list[str] = field(default_factory=list)
+    cdn_url: str | None = None
+    npm_package: str | None = None
+
+
+@dataclass
 class Contact:
     """Extracted contact information."""
 
@@ -182,6 +197,57 @@ class TechnologyDetector:
         },
     }
 
+    # Version detection patterns (library -> regex patterns)
+    VERSION_PATTERNS = {
+        "React": [
+            r'react@([0-9.]+)',
+            r'react\.version\s*=\s*["\']([0-9.]+)["\']',
+            r'React\s+v?([0-9.]+)',
+        ],
+        "Vue.js": [
+            r'vue@([0-9.]+)',
+            r'Vue\.version\s*=\s*["\']([0-9.]+)["\']',
+            r'vue\.js\s+v?([0-9.]+)',
+        ],
+        "Angular": [
+            r'@angular/core@([0-9.]+)',
+            r'Angular\s+v?([0-9.]+)',
+        ],
+        "jQuery": [
+            r'jquery@([0-9.]+)',
+            r'jQuery\s+v?([0-9.]+)',
+            r'jquery-([0-9.]+)\.min\.js',
+        ],
+        "Bootstrap": [
+            r'bootstrap@([0-9.]+)',
+            r'bootstrap-([0-9.]+)\.min',
+        ],
+        "Next.js": [
+            r'next@([0-9.]+)',
+            r'"buildId":"([^"]+)"',  # Build ID instead of version
+        ],
+        "Nuxt.js": [
+            r'nuxt@([0-9.]+)',
+        ],
+        "Webpack": [
+            r'webpack@([0-9.]+)',
+            r'/webpack\.([0-9.]+)',
+        ],
+        "Vite": [
+            r'vite@([0-9.]+)',
+        ],
+    }
+
+    # CDN detection patterns (CDN name -> regex pattern)
+    CDN_PATTERNS = {
+        "cdnjs": r'cdnjs\.cloudflare\.com/ajax/libs/([^/]+)/([^/]+)',
+        "unpkg": r'unpkg\.com/([^@/]+)@([^/]+)',
+        "jsdelivr": r'cdn\.jsdelivr\.net/npm/([^@/]+)@([^/]+)',
+        "googleapis": r'ajax\.googleapis\.com/ajax/libs/([^/]+)/([^/]+)',
+        "cloudflare": r'cdnjs\.cloudflare\.com',
+        "fastly": r'fastly\.jsdelivr\.net',
+    }
+
     def detect(self, html: str, headers: dict[str, str] | None = None) -> list[TechStack]:
         """
         Detect technologies from HTML content and HTTP headers.
@@ -226,6 +292,136 @@ class TechnologyDetector:
                 )
 
         return detected
+
+    def detect_with_versions(
+        self,
+        html: str,
+        headers: dict[str, str] | None = None,
+    ) -> list[EnhancedTechStack]:
+        """
+        Enhanced detection with version extraction and CDN analysis.
+
+        Args:
+            html: HTML content
+            headers: HTTP response headers
+
+        Returns:
+            List of enhanced technology detection results
+        """
+        enhanced_detected = []
+
+        # First, do basic detection
+        basic_detected = self.detect(html, headers)
+
+        # Enhance each detection with version info
+        for tech in basic_detected:
+            version = None
+            cdn_url = None
+            npm_package = None
+
+            # Try to extract version
+            if tech.name in self.VERSION_PATTERNS:
+                for pattern in self.VERSION_PATTERNS[tech.name]:
+                    match = re.search(pattern, html, re.IGNORECASE)
+                    if match:
+                        version = match.group(1)
+                        break
+
+            # Check for CDN usage
+            cdn_url = self._detect_cdn_url(html, tech.name)
+
+            # Create enhanced tech stack
+            enhanced_detected.append(
+                EnhancedTechStack(
+                    name=tech.name,
+                    category=tech.category,
+                    version=version,
+                    confidence=tech.confidence,
+                    evidence=tech.evidence,
+                    cdn_url=cdn_url,
+                    npm_package=self._get_npm_package_name(tech.name),
+                )
+            )
+
+        # Additionally, scan for CDN-delivered libraries
+        cdn_libraries = self._scan_cdn_libraries(html)
+        for lib in cdn_libraries:
+            # Check if not already detected
+            if not any(e.name.lower() == lib.name.lower() for e in enhanced_detected):
+                enhanced_detected.append(lib)
+
+        return enhanced_detected
+
+    def _detect_cdn_url(self, html: str, tech_name: str) -> str | None:
+        """Detect CDN URL for a specific technology."""
+        tech_lower = tech_name.lower()
+
+        for cdn_name, pattern in self.CDN_PATTERNS.items():
+            matches = re.finditer(pattern, html, re.IGNORECASE)
+            for match in matches:
+                matched_url = match.group(0)
+                # Check if the URL contains the technology name
+                if tech_lower in matched_url.lower():
+                    return matched_url
+
+        return None
+
+    def _scan_cdn_libraries(self, html: str) -> list[EnhancedTechStack]:
+        """Scan HTML for libraries loaded from CDNs."""
+        libraries = []
+        seen = set()
+
+        # Scan each CDN pattern
+        for cdn_name, pattern in self.CDN_PATTERNS.items():
+            matches = re.finditer(pattern, html, re.IGNORECASE)
+
+            for match in matches:
+                try:
+                    # Extract library name and version from match groups
+                    if len(match.groups()) >= 2:
+                        lib_name = match.group(1)
+                        version = match.group(2)
+                        cdn_url = match.group(0)
+
+                        # Deduplicate
+                        key = f"{lib_name}@{version}"
+                        if key in seen:
+                            continue
+                        seen.add(key)
+
+                        libraries.append(
+                            EnhancedTechStack(
+                                name=lib_name,
+                                category="library",
+                                version=version,
+                                confidence=0.9,
+                                evidence=[f"CDN: {cdn_name}"],
+                                cdn_url=cdn_url,
+                                npm_package=lib_name,
+                            )
+                        )
+                except IndexError:
+                    # Pattern didn't have enough groups
+                    pass
+
+        return libraries
+
+    def _get_npm_package_name(self, tech_name: str) -> str | None:
+        """Get NPM package name for a technology."""
+        # Mapping of technology names to npm package names
+        npm_mapping = {
+            "React": "react",
+            "Vue.js": "vue",
+            "Angular": "@angular/core",
+            "jQuery": "jquery",
+            "Bootstrap": "bootstrap",
+            "Next.js": "next",
+            "Nuxt.js": "nuxt",
+            "Webpack": "webpack",
+            "Vite": "vite",
+        }
+
+        return npm_mapping.get(tech_name)
 
 
 class ContactHarvester:

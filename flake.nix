@@ -24,6 +24,7 @@
             aiohttp
             aiosqlite
             pydantic
+            cssselect
 
             # OSINT
             aiodns
@@ -36,6 +37,20 @@
 
             # Utils
             fake-useragent
+
+            # Multimodal extraction
+            lxml
+            beautifulsoup4
+            pillow
+
+            # ML & Vision (Phase 1 - no PyTorch yet, will add in Phase 2)
+            # pytorch torchvision transformers (Phase 2)
+            scikit-learn
+            numpy
+            pandas
+
+            # Orchestration (Phase 2)
+            # prefect (Phase 2)
 
             # Dev
             pytest
@@ -58,9 +73,14 @@
             playwright-driver.browsers
             nodePackages.npm
             just
+
             uv
             pre-commit
             git
+
+            # Go toolchain for spider-network-proxy
+            go
+            gopls
           ];
 
           shellHook = ''
@@ -89,6 +109,9 @@
             echo "  just run <url>          Run crawler"
             echo "  just proxies            Fetch proxies"
             echo "  just clean              Clean artifacts"
+            echo ""
+            echo "Network Proxy:"
+            echo "  cd ../spider-nix-network && go run ./cmd/spider-network-proxy"
           '';
         };
 
@@ -114,6 +137,12 @@
             typer
             rich
             fake-useragent
+            lxml
+            beautifulsoup4
+            pillow
+            scikit-learn
+            numpy
+            pandas
           ];
 
           meta = with pkgs.lib; {

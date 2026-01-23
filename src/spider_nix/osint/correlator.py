@@ -20,7 +20,22 @@ class Entity:
     """OSINT entity (domain, IP, email, etc.)."""
 
     id: str  # Unique identifier
-    type: Literal["domain", "ip", "email", "url", "subdomain", "port", "technology", "cve"]
+    type: Literal[
+        "domain",
+        "ip",
+        "email",
+        "url",
+        "subdomain",
+        "port",
+        "technology",
+        "cve",
+        "api_endpoint",
+        "graphql_schema",
+        "form",
+        "directory",
+        "structured_data",
+        "archive_snapshot",
+    ]
     value: str
     metadata: dict[str, Any] = field(default_factory=dict)
     first_seen: datetime = field(default_factory=datetime.now)
@@ -170,6 +185,12 @@ class IntelligenceGraph:
             "port": "lightpink",
             "technology": "plum",
             "cve": "red",
+            "api_endpoint": "mediumpurple",
+            "graphql_schema": "mediumorchid",
+            "form": "peachpuff",
+            "directory": "lightsalmon",
+            "structured_data": "lightsteelblue",
+            "archive_snapshot": "lightgoldenrodyellow",
         }
         return colors.get(entity_type, "white")
 
@@ -418,6 +439,271 @@ class CorrelationEngine:
                         metadata={"severity": issue.severity},
                     )
                 )
+
+    def process_graphql_endpoints(self, url: str, endpoints: list) -> None:
+        """
+        Process GraphQL discovery results.
+
+        Args:
+            url: Base URL scanned
+            endpoints: List of GraphQLEndpoint objects
+        """
+        url_entity = Entity(
+            id=f"url:{url}",
+            type="url",
+            value=url,
+        )
+        self.graph.add_entity(url_entity)
+
+        for endpoint in endpoints:
+            # Add GraphQL endpoint entity
+            endpoint_entity = Entity(
+                id=f"api_endpoint:{endpoint.url}",
+                type="api_endpoint",
+                value=endpoint.url,
+                metadata={
+                    "api_type": "graphql",
+                    "introspection_enabled": endpoint.introspection_enabled,
+                    "confidence": endpoint.confidence,
+                },
+            )
+            self.graph.add_entity(endpoint_entity)
+
+            self.graph.add_relationship(
+                Relationship(
+                    source_id=url_entity.id,
+                    target_id=endpoint_entity.id,
+                    rel_type="has_api_endpoint",
+                    metadata={"api_type": "graphql"},
+                )
+            )
+
+            # If schema is available, create schema entity
+            if endpoint.schema_available and endpoint.schema_json:
+                schema_entity = Entity(
+                    id=f"graphql_schema:{endpoint.url}",
+                    type="graphql_schema",
+                    value=f"GraphQL Schema ({len(endpoint.types)} types)",
+                    metadata={
+                        "types": endpoint.types,
+                        "queries": endpoint.queries,
+                        "mutations": endpoint.mutations,
+                        "directives": endpoint.directives,
+                    },
+                )
+                self.graph.add_entity(schema_entity)
+
+                self.graph.add_relationship(
+                    Relationship(
+                        source_id=endpoint_entity.id,
+                        target_id=schema_entity.id,
+                        rel_type="has_schema",
+                    )
+                )
+
+    def process_structured_data(self, url: str, data: list) -> None:
+        """
+        Process structured data extraction results.
+
+        Args:
+            url: URL scanned
+            data: List of StructuredData objects
+        """
+        url_entity = Entity(
+            id=f"url:{url}",
+            type="url",
+            value=url,
+        )
+        self.graph.add_entity(url_entity)
+
+        for item in data:
+            # Create entity for structured data
+            data_entity = Entity(
+                id=f"structured_data:{url}:{item.schema_type}:{item.format}",
+                type="structured_data",
+                value=f"{item.schema_type} ({item.format})",
+                metadata={
+                    "schema_type": item.schema_type,
+                    "format": item.format,
+                    "properties": item.properties,
+                    "confidence": item.confidence,
+                },
+            )
+            self.graph.add_entity(data_entity)
+
+            self.graph.add_relationship(
+                Relationship(
+                    source_id=url_entity.id,
+                    target_id=data_entity.id,
+                    rel_type="contains_structured_data",
+                    metadata={"schema_type": item.schema_type, "format": item.format},
+                )
+            )
+
+            # Extract organization/product entities for competitive intelligence
+            if item.schema_type == "Organization" and "name" in item.properties:
+                org_name = item.properties["name"]
+                # Could link to external data sources here
+
+    def process_forms(self, url: str, forms: list) -> None:
+        """
+        Process form discovery results.
+
+        Args:
+            url: URL scanned
+            forms: List of FormAnalysis objects
+        """
+        url_entity = Entity(
+            id=f"url:{url}",
+            type="url",
+            value=url,
+        )
+        self.graph.add_entity(url_entity)
+
+        for form in forms:
+            # Create form entity
+            form_entity = Entity(
+                id=f"form:{form.url}:{form.action}",
+                type="form",
+                value=f"{form.purpose or 'unknown'} form ({form.method})",
+                metadata={
+                    "action": form.action,
+                    "method": form.method,
+                    "field_count": form.field_count,
+                    "purpose": form.purpose,
+                    "has_captcha": form.has_captcha,
+                    "has_file_upload": form.has_file_upload,
+                    "complexity_score": form.complexity_score,
+                },
+            )
+            self.graph.add_entity(form_entity)
+
+            self.graph.add_relationship(
+                Relationship(
+                    source_id=url_entity.id,
+                    target_id=form_entity.id,
+                    rel_type="contains_form",
+                    metadata={"purpose": form.purpose, "method": form.method},
+                )
+            )
+
+    def process_directories(self, base_url: str, directories: list) -> None:
+        """
+        Process directory brute-force results.
+
+        Args:
+            base_url: Base URL scanned
+            directories: List of DirectoryEntry objects
+        """
+        url_entity = Entity(
+            id=f"url:{base_url}",
+            type="url",
+            value=base_url,
+        )
+        self.graph.add_entity(url_entity)
+
+        for entry in directories:
+            # Create directory entity
+            dir_entity = Entity(
+                id=f"directory:{base_url}{entry.path}",
+                type="directory",
+                value=entry.path,
+                metadata={
+                    "status_code": entry.status_code,
+                    "size_bytes": entry.size_bytes,
+                    "content_type": entry.content_type,
+                    "redirect_url": entry.redirect_url,
+                    "discovered_via": entry.discovered_via,
+                },
+            )
+            self.graph.add_entity(dir_entity)
+
+            self.graph.add_relationship(
+                Relationship(
+                    source_id=url_entity.id,
+                    target_id=dir_entity.id,
+                    rel_type="has_directory",
+                    metadata={"status_code": entry.status_code},
+                )
+            )
+
+    def process_wellknown_resources(self, url: str, resources: list) -> None:
+        """
+        Process well-known directory scan results.
+
+        Args:
+            url: Base URL scanned
+            resources: List of WellKnownResource objects
+        """
+        url_entity = Entity(
+            id=f"url:{url}",
+            type="url",
+            value=url,
+        )
+        self.graph.add_entity(url_entity)
+
+        for resource in resources:
+            if resource.exists:
+                # Create directory entity for well-known resource
+                resource_entity = Entity(
+                    id=f"directory:{url}/.well-known/{resource.path}",
+                    type="directory",
+                    value=f".well-known/{resource.path}",
+                    metadata={
+                        "resource_type": resource.resource_type,
+                        "parsed_data": resource.parsed_data,
+                        "status_code": 200,  # Implied by exists=True
+                    },
+                )
+                self.graph.add_entity(resource_entity)
+
+                self.graph.add_relationship(
+                    Relationship(
+                        source_id=url_entity.id,
+                        target_id=resource_entity.id,
+                        rel_type="has_wellknown_resource",
+                        metadata={"resource_type": resource.resource_type},
+                    )
+                )
+
+    def process_archive_snapshots(self, url: str, timeline) -> None:
+        """
+        Process web archive timeline results.
+
+        Args:
+            url: URL queried
+            timeline: ArchiveTimeline object
+        """
+        url_entity = Entity(
+            id=f"url:{url}",
+            type="url",
+            value=url,
+        )
+        self.graph.add_entity(url_entity)
+
+        # Create entities for snapshots
+        for snapshot in timeline.snapshots:
+            snapshot_entity = Entity(
+                id=f"archive_snapshot:{snapshot.archive_url}",
+                type="archive_snapshot",
+                value=snapshot.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                metadata={
+                    "archive_url": snapshot.archive_url,
+                    "status_code": snapshot.status_code,
+                    "digest": snapshot.digest,
+                    "timestamp": snapshot.timestamp.isoformat(),
+                },
+            )
+            self.graph.add_entity(snapshot_entity)
+
+            self.graph.add_relationship(
+                Relationship(
+                    source_id=url_entity.id,
+                    target_id=snapshot_entity.id,
+                    rel_type="has_archive_snapshot",
+                    metadata={"timestamp": snapshot.timestamp.isoformat()},
+                )
+            )
 
     def generate_report(self) -> dict[str, Any]:
         """

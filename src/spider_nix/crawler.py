@@ -10,6 +10,13 @@ from rich.console import Console
 
 from .config import CrawlerConfig
 from .proxy import ProxyRotator
+from .rate_limiter import (
+    AdaptiveRateLimiter,
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerError,
+    RequestDeduplicator,
+)
 from .stealth import StealthEngine
 from .storage import CrawlResult, StorageBackend, get_storage
 
@@ -18,11 +25,14 @@ console = Console()
 
 class SpiderNix:
     """Enterprise web crawler with anti-detection and proxy rotation."""
-    
+
     def __init__(
         self,
         config: CrawlerConfig | None = None,
         proxy_rotator: ProxyRotator | None = None,
+        enable_adaptive_rate_limiting: bool = True,
+        enable_circuit_breaker: bool = True,
+        enable_deduplication: bool = True,
     ):
         self.config = config or CrawlerConfig()
         self.proxy = proxy_rotator or ProxyRotator(
@@ -30,6 +40,17 @@ class SpiderNix:
             strategy=self.config.proxy.rotation_strategy,
         )
         self.stealth = StealthEngine()
+
+        # Advanced features
+        self.rate_limiter = AdaptiveRateLimiter(
+            initial_delay_ms=self.config.stealth.min_delay_ms,
+            min_delay_ms=self.config.stealth.min_delay_ms,
+            max_delay_ms=self.config.stealth.max_delay_ms,
+        ) if enable_adaptive_rate_limiting else None
+
+        self.circuit_breaker = CircuitBreaker() if enable_circuit_breaker else None
+        self.deduplicator = RequestDeduplicator() if enable_deduplication else None
+
         self._visited: set[str] = set()
         self._queue: asyncio.Queue[str] = asyncio.Queue()
         self._results: list[CrawlResult] = []
@@ -130,67 +151,134 @@ class SpiderNix:
         url: str,
     ) -> CrawlResult | None:
         """Fetch URL with retry logic and proxy rotation."""
+        # Check for duplicate URL
+        if self.deduplicator and await self.deduplicator.is_duplicate_url(url):
+            console.print(f"[dim]⊗[/] {url} (duplicate URL, skipped)")
+            return None
+
+        # Apply rate limiting
+        if self.rate_limiter:
+            await self.rate_limiter.acquire()
+
         last_error = None
-        
+
         for attempt in range(self.config.max_retries):
             proxy_url = self.proxy.get_next()
             headers = self.stealth.get_headers()
-            
+
             try:
-                start = time.monotonic()
-                
-                # Configure proxy if available
-                if proxy_url:
-                    client._mounts = {
-                        "http://": httpx.HTTPTransport(proxy=proxy_url),
-                        "https://": httpx.HTTPTransport(proxy=proxy_url),
-                    }
-                
-                response = await client.get(url, headers=headers)
-                elapsed_ms = (time.monotonic() - start) * 1000
-                
-                # Report proxy stats
-                if proxy_url:
-                    if response.status_code in self.config.retry_on_status_codes:
-                        self.proxy.report_blocked(proxy_url)
-                    else:
-                        self.proxy.report_success(proxy_url, elapsed_ms)
-                
-                # Check if blocked
-                if response.status_code in self.config.retry_on_status_codes:
-                    console.print(f"[yellow]⚠[/] {url} blocked ({response.status_code}), retrying...")
-                    
-                    # Human-like delay before retry
-                    if self.config.stealth.human_like_delays:
-                        delay = self.stealth.get_random_delay_ms(
-                            self.config.stealth.min_delay_ms,
-                            self.config.stealth.max_delay_ms,
-                        ) / 1000
-                        await asyncio.sleep(delay)
-                    
-                    continue
-                
-                return CrawlResult(
-                    url=url,
-                    status_code=response.status_code,
-                    content=response.text,
-                    headers=dict(response.headers),
-                    metadata={
-                        "elapsed_ms": elapsed_ms,
-                        "proxy": proxy_url,
-                        "attempt": attempt + 1,
-                    }
-                )
-                
+                # Circuit breaker protection
+                if self.circuit_breaker:
+                    try:
+                        result = await self.circuit_breaker.call(
+                            self._do_request,
+                            client,
+                            url,
+                            headers,
+                            proxy_url,
+                            attempt,
+                        )
+                        return result
+                    except CircuitBreakerError as e:
+                        console.print(f"[red]⚠[/] {url} circuit breaker open, skipping")
+                        return None
+                else:
+                    result = await self._do_request(
+                        client,
+                        url,
+                        headers,
+                        proxy_url,
+                        attempt,
+                    )
+                    return result
+
             except httpx.RequestError as e:
                 last_error = e
                 if proxy_url:
                     self.proxy.report_failure(proxy_url)
+
+                # Report to rate limiter
+                if self.rate_limiter:
+                    await self.rate_limiter.report_request(
+                        status_code=0,
+                        response_time_ms=0,
+                        error=True,
+                    )
+
                 console.print(f"[red]✗[/] {url} error: {e}, retrying...")
                 await asyncio.sleep(1)
-        
+
         console.print(f"[red]✗[/] {url} failed after {self.config.max_retries} attempts")
         return None
+
+    async def _do_request(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        headers: dict,
+        proxy_url: str | None,
+        attempt: int,
+    ) -> CrawlResult | None:
+        """Execute single HTTP request."""
+        start = time.monotonic()
+
+        # Configure proxy if available
+        if proxy_url:
+            client._mounts = {
+                "http://": httpx.HTTPTransport(proxy=proxy_url),
+                "https://": httpx.HTTPTransport(proxy=proxy_url),
+            }
+
+        response = await client.get(url, headers=headers)
+        elapsed_ms = (time.monotonic() - start) * 1000
+
+        # Report to rate limiter
+        if self.rate_limiter:
+            await self.rate_limiter.report_request(
+                status_code=response.status_code,
+                response_time_ms=elapsed_ms,
+                error=False,
+            )
+
+        # Report proxy stats
+        if proxy_url:
+            if response.status_code in self.config.retry_on_status_codes:
+                self.proxy.report_blocked(proxy_url)
+            else:
+                self.proxy.report_success(proxy_url, elapsed_ms)
+
+        # Check if blocked
+        if response.status_code in self.config.retry_on_status_codes:
+            console.print(f"[yellow]⚠[/] {url} blocked ({response.status_code}), retrying...")
+
+            # Human-like delay before retry
+            if self.config.stealth.human_like_delays:
+                delay = self.stealth.get_random_delay_ms(
+                    self.config.stealth.min_delay_ms,
+                    self.config.stealth.max_delay_ms,
+                ) / 1000
+                await asyncio.sleep(delay)
+
+            raise httpx.RequestError(f"Blocked with status {response.status_code}")
+
+        # Check for duplicate content
+        if self.deduplicator and await self.deduplicator.is_duplicate_content(response.text):
+            console.print(f"[dim]⊗[/] {url} (duplicate content, skipped)")
+            return None
+
+        return CrawlResult(
+            url=url,
+            status_code=response.status_code,
+            content=response.text,
+            headers=dict(response.headers),
+            metadata={
+                "elapsed_ms": elapsed_ms,
+                "proxy": proxy_url,
+                "attempt": attempt + 1,
+                "rate_limit_delay_ms": self.rate_limiter.current_delay_ms if self.rate_limiter else 0,
+                "circuit_state": self.circuit_breaker.get_state().value if self.circuit_breaker else "none",
+            }
+        )
     
     def _extract_links(self, html: str, base_url: str) -> list[str]:
         """Extract links from HTML."""
