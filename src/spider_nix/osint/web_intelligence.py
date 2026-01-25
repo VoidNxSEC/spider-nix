@@ -94,10 +94,10 @@ class ArchiveTimeline:
     """Timeline of web archive snapshots."""
 
     url: str
-    first_seen: datetime | None = None
-    last_seen: datetime | None = None
     snapshot_count: int
     snapshots: list[ArchiveSnapshot]
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
 
 
 # ============================================================================

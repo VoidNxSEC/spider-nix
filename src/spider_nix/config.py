@@ -14,7 +14,7 @@ class ProxyConfig(BaseModel):
 
 class StealthConfig(BaseModel):
     """Anti-detection configuration."""
-    
+
     randomize_user_agent: bool = True
     randomize_fingerprint: bool = True
     human_like_delays: bool = True
@@ -22,27 +22,59 @@ class StealthConfig(BaseModel):
     max_delay_ms: int = 3000
 
 
+class NetworkConfig(BaseModel):
+    """Network OPSEC configuration (Phase 1B)."""
+
+    use_network_proxy: bool = False
+    network_proxy_url: str = "http://127.0.0.1:8080"
+    tls_fingerprint_rotation: bool = True
+
+
+class VisionConfig(BaseModel):
+    """Vision extraction configuration (Phase 1C)."""
+
+    enabled: bool = False
+    ml_offload_api_url: str = "http://localhost:9000"
+    vision_model: str = "llava-v1.5-7b-q4"
+    iou_threshold: float = 0.5
+    fusion_confidence_threshold: float = 0.7
+
+
+class MLConfig(BaseModel):
+    """ML feedback loop configuration (Phase 1D)."""
+
+    enabled: bool = False
+    feedback_db_path: str = "feedback.db"
+    epsilon: float = 0.1  # Exploration rate (epsilon-greedy)
+    auto_adapt_strategies: bool = True
+
+
 class CrawlerConfig(BaseModel):
     """Main crawler configuration."""
-    
+
     # Request settings
     max_requests_per_crawl: int = 1000
     max_concurrent_requests: int = 10
     request_timeout_ms: int = 30000
-    
+
     # Retry settings
     max_retries: int = 5
     retry_on_status_codes: list[int] = Field(default_factory=lambda: [429, 500, 502, 503, 504])
-    
+
     # Browser settings
     use_browser: bool = False
     headless: bool = True
     browser_type: Literal["chromium", "firefox", "webkit"] = "chromium"
-    
+
     # Anti-detection
     stealth: StealthConfig = Field(default_factory=StealthConfig)
     proxy: ProxyConfig = Field(default_factory=ProxyConfig)
-    
+
+    # Phase 1 enhancements
+    network: NetworkConfig = Field(default_factory=NetworkConfig)
+    vision: VisionConfig = Field(default_factory=VisionConfig)
+    ml: MLConfig = Field(default_factory=MLConfig)
+
     # Output
     output_format: Literal["json", "csv", "sqlite"] = "json"
     output_path: str = "output"

@@ -1,244 +1,340 @@
-"""Strategy selector using multi-armed bandit algorithm.
+"""
+Strategy Selector - Epsilon-Greedy Multi-Armed Bandit.
 
-Learns which evasion strategies work best per domain.
+Learns which evasion strategies work best per domain using reinforcement learning.
+Balances exploration (trying new strategies) with exploitation (using known best).
+
+Strategies:
+- TLS_FINGERPRINT_ROTATION: Rotate TLS fingerprints via Go proxy
+- PROXY_ROTATION: Rotate IP addresses
+- BROWSER_MODE: Use Playwright instead of httpx
+- EXTENDED_DELAYS: Add longer delays between requests
+- HEADERS_VARIATION: Randomize HTTP headers
+- COOKIE_PERSISTENCE: Maintain cookies across requests
 """
 
 import random
-from urllib.parse import urlparse
+from typing import Dict, List
 
-from .feedback_logger import FeedbackLogger
-from .models import Strategy
+import aiosqlite
+
+from .models import Strategy, FailureClass
 
 
 class StrategySelector:
-    """Select best evasion strategies using epsilon-greedy bandit.
-
-    Balances exploration (trying new strategies) with exploitation
-    (using known good strategies).
+    """
+    Epsilon-greedy multi-armed bandit for adaptive strategy selection.
+    
+    Algorithm:
+    - With probability ε (epsilon): EXPLORE - random strategy
+    - With probability (1-ε): EXPLOIT - best known strategy
+    
+    Learns from feedback.db which strategies succeed per domain.
     """
 
-    def __init__(
-        self,
-        feedback_logger: FeedbackLogger,
-        epsilon: float = 0.2,
-        default_strategies: list[Strategy] | None = None,
-    ):
-        """Initialize strategy selector.
-
-        Args:
-            feedback_logger: Feedback logger for accessing effectiveness data
-            epsilon: Exploration rate (0-1). Higher = more exploration.
-            default_strategies: Strategies to use when no data available
+    def __init__(self, epsilon: float = 0.1, db_path: str = "feedback.db"):
         """
-        self.feedback_logger = feedback_logger
+        Initialize strategy selector.
+        
+        Args:
+            epsilon: Exploration rate (0.1 = 10% exploration, 90% exploitation)
+            db_path: Path to feedback.db for loading historical stats
+        """
         self.epsilon = epsilon
-        self.default_strategies = default_strategies or [
-            Strategy.TLS_FINGERPRINT_ROTATION,
-            Strategy.PROXY_ROTATION,
-            Strategy.HEADERS_VARIATION,
-        ]
-        self._rng = random.Random()
+        self.db_path = db_path
+        
+        # Strategy statistics: {domain: {strategy: {"success": int, "failure": int}}}
+        self.strategy_stats: Dict[str, Dict[Strategy, dict]] = {}
+        
+        # Default strategy (used for new domains)
+        self.default_strategy = Strategy.TLS_FINGERPRINT_ROTATION
 
-    async def select_strategies(
-        self,
-        url: str,
-        num_strategies: int = 3,
-    ) -> list[Strategy]:
-        """Select strategies for a URL using epsilon-greedy.
-
-        Args:
-            url: Target URL
-            num_strategies: Number of strategies to select
-
-        Returns:
-            List of selected strategies
+    def select_strategy(self, domain: str) -> Strategy:
         """
-        domain = self._extract_domain(url)
+        Select best strategy for domain using epsilon-greedy.
+        
+        Args:
+            domain: Target domain
+            
+        Returns:
+            Selected strategy
+        """
+        # Initialize domain if new
+        if domain not in self.strategy_stats:
+            self._initialize_domain(domain)
 
-        # Get effectiveness data for this domain
-        effectiveness = await self.feedback_logger.get_strategy_effectiveness(domain)
-
-        # No data - use defaults with random exploration
-        if not effectiveness:
-            return self._explore_random(num_strategies)
-
-        # Epsilon-greedy selection
-        if self._rng.random() < self.epsilon:
-            # Explore: try random strategies
-            return self._explore_random(num_strategies)
+        # Epsilon-greedy decision
+        if random.random() < self.epsilon:
+            # EXPLORE: Random strategy
+            return random.choice(list(Strategy))
         else:
-            # Exploit: use best performing strategies
-            return self._exploit_best(effectiveness, num_strategies)
+            # EXPLOIT: Best strategy
+            return self._best_strategy(domain)
 
-    def _extract_domain(self, url: str) -> str:
-        """Extract domain from URL.
+    def update(self, domain: str, strategy: Strategy, success: bool, response_time_ms: float = 0.0):
+        """
+        Update strategy statistics after request.
 
         Args:
-            url: Full URL
-
-        Returns:
-            Domain (e.g., 'example.com')
+            domain: Target domain
+            strategy: Strategy used
+            success: Whether request succeeded
+            response_time_ms: Response time in milliseconds (optional, for future metrics)
         """
-        parsed = urlparse(url)
-        return parsed.netloc
+        if domain not in self.strategy_stats:
+            self._initialize_domain(domain)
 
-    def _explore_random(self, num_strategies: int) -> list[Strategy]:
-        """Select random strategies for exploration.
+        if success:
+            self.strategy_stats[domain][strategy]["success"] += 1
+        else:
+            self.strategy_stats[domain][strategy]["failure"] += 1
+
+        # Update avg response time
+        stats = self.strategy_stats[domain][strategy]
+        total = stats["success"] + stats["failure"]
+        current_avg = stats["avg_response_time"]
+        stats["avg_response_time"] = (current_avg * (total - 1) + response_time_ms) / total
+
+    def record_attempt(self, domain: str, strategy: Strategy, failure_class: FailureClass, response_time_ms: float):
+        """
+        Record crawl attempt outcome for ML feedback.
 
         Args:
-            num_strategies: Number to select
+            domain: Target domain
+            strategy: Strategy used
+            failure_class: Classification of the attempt result
+            response_time_ms: Response time in milliseconds
+        """
+        success = (failure_class == FailureClass.SUCCESS)
+        self.update(domain, strategy, success, response_time_ms)
+
+    def recommend_strategies(self, failure_class: FailureClass) -> list[Strategy]:
+        """
+        Recommend strategies to try based on failure type.
+
+        Args:
+            failure_class: Type of failure encountered
 
         Returns:
-            Random strategies
+            List of recommended strategies
         """
-        all_strategies = list(Strategy)
-        selected = self._rng.sample(
-            all_strategies,
-            min(num_strategies, len(all_strategies)),
+        recommendations = {
+            FailureClass.RATE_LIMIT: [
+                Strategy.EXTENDED_DELAYS,
+                Strategy.PROXY_ROTATION,
+                Strategy.COOKIE_PERSISTENCE,
+            ],
+            FailureClass.CAPTCHA: [
+                Strategy.BROWSER_MODE,
+                Strategy.EXTENDED_DELAYS,
+                Strategy.PROXY_ROTATION,
+            ],
+            FailureClass.FINGERPRINT_DETECTED: [
+                Strategy.TLS_FINGERPRINT_ROTATION,
+                Strategy.HEADERS_VARIATION,
+                Strategy.BROWSER_MODE,
+            ],
+            FailureClass.IP_BLOCKED: [
+                Strategy.PROXY_ROTATION,
+                Strategy.EXTENDED_DELAYS,
+            ],
+            FailureClass.TIMEOUT: [
+                Strategy.EXTENDED_DELAYS,
+                Strategy.PROXY_ROTATION,
+            ],
+            FailureClass.SERVER_ERROR: [
+                Strategy.EXTENDED_DELAYS,
+            ],
+        }
+
+        return recommendations.get(failure_class, [Strategy.TLS_FINGERPRINT_ROTATION])
+
+    def _initialize_domain(self, domain: str):
+        """Initialize strategy statistics for new domain."""
+        self.strategy_stats[domain] = {
+            strategy: {"success": 0, "failure": 0, "avg_response_time": 0.0}
+            for strategy in Strategy
+        }
+
+    def get_domain_stats(self, domain: str) -> Dict:
+        """
+        Get statistics for a specific domain.
+
+        Args:
+            domain: Target domain
+
+        Returns:
+            Dict of {domain: {strategy: stats}}
+        """
+        if domain not in self.strategy_stats:
+            return {}
+
+        return {domain: self.strategy_stats[domain]}
+
+    def _best_strategy(self, domain: str) -> Strategy:
+        """
+        Select strategy with highest success rate.
+
+        Uses Upper Confidence Bound (UCB) for tie-breaking:
+        - Prefers strategies with higher success rate
+        - Adds exploration bonus for under-tried strategies
+        """
+        stats = self.strategy_stats[domain]
+
+        # Calculate total attempts across all strategies
+        total_attempts = sum(
+            counts["success"] + counts["failure"]
+            for counts in stats.values()
         )
-        return selected
 
-    def _exploit_best(
-        self,
-        effectiveness: list,
-        num_strategies: int,
-    ) -> list[Strategy]:
-        """Select best performing strategies.
+        best_strategies = []
+        best_score = -1
+
+        for strategy, counts in stats.items():
+            total = counts["success"] + counts["failure"]
+
+            if total == 0:
+                # Never tried: optimistic initialization, but reduce bonus as total attempts grow
+                # This allows exploitation of known-good strategies after sufficient exploration
+                exploration_factor = max(0.5, 1.0 - (total_attempts / 200))
+                score = exploration_factor
+            else:
+                # Success rate + exploration bonus
+                success_rate = counts["success"] / total
+                exploration_bonus = ((1.0 / (total + 1)) ** 0.5) * 0.1  # Reduced UCB bonus
+                score = success_rate + exploration_bonus
+
+            if score > best_score:
+                best_score = score
+                best_strategies = [strategy]
+            elif score == best_score:
+                best_strategies.append(strategy)
+
+        # If multiple strategies have same score, pick randomly
+        return random.choice(best_strategies) if best_strategies else self.default_strategy
+
+    def get_stats(self, domain: str | None = None) -> Dict:
+        """
+        Get strategy statistics for domain or all domains.
 
         Args:
-            effectiveness: List of StrategyEffectiveness records
-            num_strategies: Number to select
+            domain: Specific domain or None for all domains
 
         Returns:
-            Best strategies
+            If domain specified: {strategy: {"success": int, "failure": int, "rate": float}}
+            If domain=None: {domain: {strategy: stats}}
         """
-        # Sort by success rate (descending), then by response time (ascending)
-        sorted_strategies = sorted(
-            effectiveness,
-            key=lambda e: (e.success_rate, -e.avg_response_time_ms),
-            reverse=True,
-        )
+        if domain is not None:
+            # Return stats for specific domain
+            if domain not in self.strategy_stats:
+                return {}
 
-        # Take top N
-        best = sorted_strategies[:num_strategies]
+            stats_with_rates = {}
+            for strategy, counts in self.strategy_stats[domain].items():
+                total = counts["success"] + counts["failure"]
+                rate = counts["success"] / total if total > 0 else 0.0
 
-        # Add exploration if we don't have enough
-        if len(best) < num_strategies:
-            tried = {e.strategy for e in best}
-            untried = [s for s in Strategy if s not in tried]
+                stats_with_rates[strategy] = {
+                    "success": counts["success"],
+                    "failure": counts["failure"],
+                    "total": total,
+                    "success_rate": rate
+                }
 
-            if untried:
-                additional = self._rng.sample(
-                    untried,
-                    min(num_strategies - len(best), len(untried)),
-                )
-                best.extend([
-                    type('Effectiveness', (), {
-                        'strategy': s,
-                        'success_rate': 0.0,
-                        'avg_response_time_ms': 0.0,
-                    })()
-                    for s in additional
-                ])
+            return stats_with_rates
+        else:
+            # Return all domains' stats
+            return self.strategy_stats
 
-        return [e.strategy for e in best[:num_strategies]]
+    async def load_from_db(self):
+        """Load historical statistics from feedback.db."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                cursor = await db.execute("""
+                    SELECT domain, strategy, success_count, failure_count
+                    FROM strategy_effectiveness
+                """)
 
-    async def get_best_single_strategy(self, url: str) -> Strategy:
-        """Get single best strategy for a URL.
+                rows = await cursor.fetchall()
+                for domain, strategy_name, success, failure in rows:
+                    if domain not in self.strategy_stats:
+                        self._initialize_domain(domain)
 
-        Args:
-            url: Target URL
+                    try:
+                        strategy = Strategy(strategy_name)
+                        self.strategy_stats[domain][strategy] = {
+                            "success": success,
+                            "failure": failure
+                        }
+                    except ValueError:
+                        # Unknown strategy in DB (skip)
+                        continue
 
+        except Exception as e:
+            # DB doesn't exist yet or error reading
+            pass
+
+    async def save_to_db(self):
+        """Persist statistics to feedback.db."""
+        async with aiosqlite.connect(self.db_path) as db:
+            for domain, strategies in self.strategy_stats.items():
+                for strategy, counts in strategies.items():
+                    await db.execute("""
+                        INSERT INTO strategy_effectiveness
+                        (domain, strategy, success_count, failure_count, last_updated)
+                        VALUES (?, ?, ?, ?, datetime('now'))
+                        ON CONFLICT(domain, strategy) DO UPDATE SET
+                            success_count = excluded.success_count,
+                            failure_count = excluded.failure_count,
+                            last_updated = datetime('now')
+                    """, (domain, strategy.value, counts["success"], counts["failure"]))
+
+            await db.commit()
+
+    def get_domain_recommendation(self, domain: str) -> Dict[str, any]:
+        """
+        Get recommendation for domain.
+        
         Returns:
-            Best strategy
+            Dict with best strategy, confidence, and advice
         """
-        strategies = await self.select_strategies(url, num_strategies=1)
-        return strategies[0] if strategies else self.default_strategies[0]
-
-    async def should_change_strategy(
-        self,
-        url: str,
-        current_strategies: list[Strategy],
-        consecutive_failures: int,
-    ) -> bool:
-        """Determine if strategy should be changed after failures.
-
-        Args:
-            url: Target URL
-            current_strategies: Currently active strategies
-            consecutive_failures: Number of consecutive failures
-
-        Returns:
-            Whether to change strategy
-        """
-        # Change after 3 consecutive failures
-        if consecutive_failures >= 3:
-            return True
-
-        # Check if current strategies have low success rate
-        domain = self._extract_domain(url)
-        effectiveness = await self.feedback_logger.get_strategy_effectiveness(domain)
-
-        if not effectiveness:
-            return False
-
-        # Map to dict for lookup
-        eff_map = {e.strategy: e for e in effectiveness}
-
-        # Check if any current strategy has <30% success rate
-        for strategy in current_strategies:
-            if strategy in eff_map:
-                if eff_map[strategy].success_rate < 0.3:
-                    return True
-
-        return False
-
-    def set_epsilon(self, epsilon: float):
-        """Update exploration rate.
-
-        Args:
-            epsilon: New exploration rate (0-1)
-        """
-        if not 0 <= epsilon <= 1:
-            raise ValueError("Epsilon must be between 0 and 1")
-        self.epsilon = epsilon
-
-    async def get_strategy_recommendations(
-        self,
-        url: str,
-    ) -> dict[str, list[tuple[Strategy, float]]]:
-        """Get strategy recommendations with confidence scores.
-
-        Args:
-            url: Target URL
-
-        Returns:
-            Dictionary with 'recommended' and 'avoid' strategies
-        """
-        domain = self._extract_domain(url)
-        effectiveness = await self.feedback_logger.get_strategy_effectiveness(domain)
-
-        if not effectiveness:
+        if domain not in self.strategy_stats:
             return {
-                "recommended": [(s, 0.5) for s in self.default_strategies],
-                "avoid": [],
+                "domain": domain,
+                "status": "new",
+                "recommendation": self.default_strategy.value,
+                "confidence": 0.0,
+                "advice": "No data yet - using default strategy"
             }
 
-        # Strategies with >60% success rate
-        recommended = [
-            (e.strategy, e.success_rate)
-            for e in effectiveness
-            if e.success_rate >= 0.6 and e.total_attempts >= 5
-        ]
+        best_strategy = self._best_strategy(domain)
+        stats = self.get_stats(domain)
+        best_stats = stats[best_strategy]
 
-        # Strategies with <30% success rate
-        avoid = [
-            (e.strategy, e.success_rate)
-            for e in effectiveness
-            if e.success_rate < 0.3 and e.total_attempts >= 5
-        ]
+        # Calculate confidence
+        total_attempts = sum(s["total"] for s in stats.values())
+        confidence = min(1.0, total_attempts / 50)  # Confident after 50 attempts
 
         return {
-            "recommended": sorted(recommended, key=lambda x: x[1], reverse=True),
-            "avoid": sorted(avoid, key=lambda x: x[1]),
+            "domain": domain,
+            "status": "learned",
+            "recommendation": best_strategy.value,
+            "success_rate": best_stats["success_rate"],
+            "attempts": best_stats["total"],
+            "confidence": confidence,
+            "advice": self._generate_advice(best_stats)
         }
+
+    def _generate_advice(self, stats: dict) -> str:
+        """Generate human-readable advice based on stats."""
+        rate = stats["success_rate"]
+        total = stats["total"]
+
+        if total < 10:
+            return "Still learning - need more data"
+        elif rate > 0.8:
+            return "High success rate - strategy working well"
+        elif rate > 0.5:
+            return "Moderate success - may need adjustment"
+        else:
+            return "Low success rate - consider different approach"

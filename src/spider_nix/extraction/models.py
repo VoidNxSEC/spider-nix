@@ -1,61 +1,56 @@
-"""Data models for multimodal extraction."""
+"""
+Data models for multimodal extraction (Vision + DOM fusion).
+
+Core models for the vision-DOM fusion pipeline that enables CSS-independent
+element extraction using computer vision and IoU (Intersection over Union) matching.
+"""
 
 from dataclasses import dataclass, field
-from typing import Any
+from datetime import datetime
+from typing import Literal
 
 
 @dataclass
 class BoundingBox:
-    """Normalized bounding box coordinates (0-1 range).
-
-    Attributes:
-        x: Left edge (0-1 normalized)
-        y: Top edge (0-1 normalized)
-        width: Box width (0-1 normalized)
-        height: Box height (0-1 normalized)
     """
-    x: float
-    y: float
-    width: float
-    height: float
+    Normalized bounding box coordinates (0-1 range).
+    
+    Origin is top-left (0,0), bottom-right is (1,1).
+    """
+    x: float  # Left edge (0 = left, 1 = right)
+    y: float  # Top edge (0 = top, 1 = bottom)
+    width: float  # Box width
+    height: float  # Box height
+
+    def area(self) -> float:
+        """Calculate box area."""
+        return self.width * self.height
+
+    def intersects(self, other: "BoundingBox") -> bool:
+        """Check if this box intersects with another."""
+        return not (
+            self.x + self.width < other.x or
+            other.x + other.width < self.x or
+            self.y + self.height < other.y or
+            other.y + other.height < self.y
+        )
 
     def iou(self, other: "BoundingBox") -> float:
-        """Calculate Intersection over Union with another bounding box.
+        """Calculate Intersection over Union (IoU) with another box."""
+        # Calculate intersection area
+        x_overlap = max(0, min(self.x + self.width, other.x + other.width) - max(self.x, other.x))
+        y_overlap = max(0, min(self.y + self.height, other.y + other.height) - max(self.y, other.y))
+        intersection = x_overlap * y_overlap
 
-        Args:
-            other: Another bounding box
+        # Calculate union area
+        area1 = self.area()
+        area2 = other.area()
+        union = area1 + area2 - intersection
 
-        Returns:
-            IoU score (0-1), where 1 is perfect overlap
-        """
-        # Calculate intersection rectangle
-        x_left = max(self.x, other.x)
-        y_top = max(self.y, other.y)
-        x_right = min(self.x + self.width, other.x + other.width)
-        y_bottom = min(self.y + self.height, other.y + other.height)
-
-        # No intersection
-        if x_right < x_left or y_bottom < y_top:
-            return 0.0
-
-        # Calculate areas
-        intersection_area = (x_right - x_left) * (y_bottom - y_top)
-        box1_area = self.width * self.height
-        box2_area = other.width * other.height
-        union_area = box1_area + box2_area - intersection_area
-
-        return intersection_area / union_area if union_area > 0 else 0.0
+        return intersection / union if union > 0 else 0.0
 
     def to_absolute(self, viewport_width: int, viewport_height: int) -> tuple[int, int, int, int]:
-        """Convert normalized coordinates to absolute pixel coordinates.
-
-        Args:
-            viewport_width: Viewport width in pixels
-            viewport_height: Viewport height in pixels
-
-        Returns:
-            Tuple of (x, y, width, height) in absolute pixels
-        """
+        """Convert normalized coordinates to absolute pixels."""
         return (
             int(self.x * viewport_width),
             int(self.y * viewport_height),
@@ -66,82 +61,232 @@ class BoundingBox:
 
 @dataclass
 class VisionDetection:
-    """Vision AI detection result from screenshot analysis.
-
-    Attributes:
-        element_type: Detected element type (button, input, link, image, text, etc.)
-        bounding_box: Normalized bounding box coordinates
-        confidence: Model confidence score (0-1)
-        text: Extracted text from element (OCR/OCI)
-        attributes: Additional vision model outputs
     """
-    element_type: str
+    Element detected by vision model (CLIP, LLaVA, Qwen-VL).
+
+    Represents visual understanding of page elements independent of DOM/CSS.
+    """
+    element_type: str  # button, link, text, image, input, form, nav, menu
     bounding_box: BoundingBox
-    confidence: float
-    text: str | None = None
-    attributes: dict[str, Any] = field(default_factory=dict)
+    confidence: float  # 0.0-1.0 model confidence
+    text: str | None = None  # OCR extracted text
+    ocr_confidence: float | None = None
+    attributes: dict = field(default_factory=dict)  # Visual attributes (color, size, etc)
+    model_id: str = "clip-vit-b32"  # Which model detected it
+
+    def is_high_confidence(self, threshold: float = 0.8) -> bool:
+        """Check if detection confidence meets threshold."""
+        return self.confidence >= threshold
+
+    def has_text(self) -> bool:
+        """Check if OCR extracted any text."""
+        return self.text is not None and len(self.text.strip()) > 0
 
 
 @dataclass
 class DOMElement:
-    """Parsed DOM element with position information.
+    """
+    Element extracted from HTML DOM.
 
-    Attributes:
-        tag_name: HTML tag name
-        xpath: Full XPath to element
-        css_selector: CSS selector path
-        bounding_box: Element position (from getBoundingClientRect)
-        text_content: Visible text content
-        attributes: HTML attributes dict
-        inner_html: Element inner HTML
+    Represents traditional DOM-based element with selectors and attributes.
     """
     tag_name: str
     xpath: str
     css_selector: str
-    bounding_box: BoundingBox | None = None
-    text_content: str | None = None
-    attributes: dict[str, str] = field(default_factory=dict)
-    inner_html: str | None = None
+    text_content: str = ""
+    attributes: dict = field(default_factory=dict)
+    bounding_box: BoundingBox | None = None  # From JS getBoundingClientRect()
+
+    def matches_type(self, element_type: str) -> bool:
+        """
+        Check if DOM element matches vision detection type.
+        
+        Maps visual element types to DOM tag names.
+        """
+        type_map = {
+            "button": ["button", "input"],
+            "link": ["a"],
+            "input": ["input", "textarea", "select"],
+            "image": ["img", "picture"],
+            "form": ["form"],
+            "nav": ["nav"],
+            "menu": ["ul", "ol", "menu"],
+        }
+        
+        tag_lower = self.tag_name.lower()
+        
+        # Special handling for input types
+        if tag_lower == "input" and element_type == "button":
+            input_type = self.attributes.get("type", "").lower()
+            return input_type in ["submit", "button", "reset"]
+        
+        return tag_lower in type_map.get(element_type, [])
+
+    def is_interactive(self) -> bool:
+        """Check if element is interactive (clickable, typeable, etc)."""
+        interactive_tags = ["a", "button", "input", "textarea", "select"]
+        return self.tag_name.lower() in interactive_tags
 
 
 @dataclass
 class FusedElement:
-    """Result of vision-DOM fusion.
-
-    Combines visual detection with DOM structural information,
-    providing CSS-resilient extraction anchored to visual coordinates.
-
-    Attributes:
-        vision: Vision AI detection
-        dom: Matched DOM element (None if no match found)
-        iou_score: Intersection over Union score for the match
-        extraction_confidence: Overall confidence in this extraction
-        strategy: How this element was matched ('vision_only', 'dom_only', 'fused')
     """
-    vision: VisionDetection | None
-    dom: DOMElement | None
-    iou_score: float
-    extraction_confidence: float
-    strategy: str = "fused"
+    High-confidence element from Vision+DOM fusion.
+
+    Represents the core innovation: combining visual detection with DOM analysis
+    for CSS-independent extraction that's resilient to class name changes.
+    """
+    iou_score: float  # Intersection over Union quality (0-1)
+    extraction_confidence: float  # Combined confidence score
+    vision: VisionDetection | None = None  # None if DOM-only extraction
+    dom: DOMElement | None = None  # None if vision-only extraction
+    extraction_method: Literal["vision_only", "dom_only", "fused"] = "vision_only"
+    fusion_metadata: dict = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.now)
 
     @property
-    def is_high_confidence(self) -> bool:
-        """Check if extraction meets high confidence threshold."""
-        return self.extraction_confidence >= 0.7
+    def selector(self) -> str | None:
+        """Get best CSS/XPath selector (prefer CSS > XPath > None)."""
+        if self.dom:
+            return self.dom.css_selector or self.dom.xpath
+        return None
 
     @property
-    def best_text(self) -> str | None:
-        """Get best available text (prefer vision OCR, fallback to DOM)."""
+    def is_resilient(self) -> bool:
+        """
+        Check if extraction is resilient to CSS changes.
+        
+        Fused elements with high IoU are resilient because they combine
+        visual position (doesn't change) with DOM structure.
+        """
+        return self.extraction_method == "fused" and self.iou_score > 0.7
+
+    @property
+    def text(self) -> str:
+        """Get element text (prefer Vision OCR > DOM)."""
         if self.vision and self.vision.text:
             return self.vision.text
-        if self.dom and self.dom.text_content:
+        elif self.dom and self.dom.text_content:
             return self.dom.text_content
-        return None
+        return ""
 
     @property
     def best_selector(self) -> str | None:
-        """Get best available selector for future extraction."""
-        if self.dom:
-            # Prefer CSS selector for readability
-            return self.dom.css_selector or self.dom.xpath
-        return None
+        """Alias for selector property (backward compatibility)."""
+        return self.selector
+
+    @property
+    def best_text(self) -> str:
+        """Alias for text property (backward compatibility)."""
+        return self.text
+
+    @property
+    def is_high_confidence(self) -> bool:
+        """Check if fusion has high confidence (IoU > 0.7 and vision confidence > 0.8)."""
+        return self.iou_score > 0.7 and (self.vision.confidence > 0.8 if self.vision else False)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        result = {
+            "text": self.text,
+            "selector": self.selector,
+            "confidence": self.extraction_confidence,
+            "iou_score": self.iou_score,
+            "method": self.extraction_method,
+            "is_resilient": self.is_resilient,
+            "attributes": self.dom.attributes if self.dom else {},
+        }
+
+        if self.vision:
+            result["element_type"] = self.vision.element_type
+            result["bounding_box"] = {
+                "x": self.vision.bounding_box.x,
+                "y": self.vision.bounding_box.y,
+                "width": self.vision.bounding_box.width,
+                "height": self.vision.bounding_box.height,
+            }
+
+        return result
+
+
+@dataclass
+class ExtractionResult:
+    """
+    Complete extraction result for a page.
+    
+    Contains all detections, elements, and fusion results with performance metrics.
+    """
+    url: str
+    screenshot_path: str
+    vision_detections: list[VisionDetection]
+    dom_elements: list[DOMElement]
+    fused_elements: list[FusedElement]
+    extraction_time_ms: float
+    model_inference_time_ms: float
+    fusion_time_ms: float
+    metadata: dict = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.now)
+
+    @property
+    def total_elements(self) -> int:
+        """Total number of fused elements."""
+        return len(self.fused_elements)
+
+    @property
+    def fused_count(self) -> int:
+        """Number of successfully fused elements."""
+        return len([e for e in self.fused_elements if e.extraction_method == "fused"])
+
+    @property
+    def vision_only_count(self) -> int:
+        """Number of vision-only elements."""
+        return len([e for e in self.fused_elements if e.extraction_method == "vision_only"])
+
+    @property
+    def dom_only_count(self) -> int:
+        """Number of DOM-only elements."""
+        return len([e for e in self.fused_elements if e.extraction_method == "dom_only"])
+
+    @property
+    def fusion_success_rate(self) -> float:
+        """Percentage of elements successfully fused."""
+        if self.total_elements == 0:
+            return 0.0
+        return (self.fused_count / self.total_elements) * 100
+
+    @property
+    def average_iou(self) -> float:
+        """Average IoU score for fused elements."""
+        fused = [e for e in self.fused_elements if e.extraction_method == "fused"]
+        if not fused:
+            return 0.0
+        return sum(e.iou_score for e in fused) / len(fused)
+
+    def get_resilient_elements(self) -> list[FusedElement]:
+        """Get only resilient (high-confidence fused) elements."""
+        return [e for e in self.fused_elements if e.is_resilient]
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "url": self.url,
+            "screenshot_path": self.screenshot_path,
+            "timestamp": self.timestamp.isoformat(),
+            "performance": {
+                "extraction_time_ms": self.extraction_time_ms,
+                "model_inference_time_ms": self.model_inference_time_ms,
+                "fusion_time_ms": self.fusion_time_ms,
+            },
+            "counts": {
+                "total_elements": self.total_elements,
+                "fused": self.fused_count,
+                "vision_only": self.vision_only_count,
+                "dom_only": self.dom_only_count,
+            },
+            "metrics": {
+                "fusion_success_rate": self.fusion_success_rate,
+                "average_iou": self.average_iou,
+            },
+            "elements": [e.to_dict() for e in self.fused_elements],
+            "metadata": self.metadata,
+        }

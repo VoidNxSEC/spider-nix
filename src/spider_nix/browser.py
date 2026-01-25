@@ -15,11 +15,13 @@ console = Console()
 
 class BrowserCrawler:
     """Playwright-based crawler for JavaScript-heavy sites."""
-    
+
     def __init__(
         self,
         config: CrawlerConfig | None = None,
         proxy_rotator: ProxyRotator | None = None,
+        use_network_proxy: bool = True,
+        network_proxy_url: str = "http://127.0.0.1:8080",
     ):
         self.config = config or CrawlerConfig(use_browser=True)
         self.proxy = proxy_rotator or ProxyRotator(
@@ -27,6 +29,8 @@ class BrowserCrawler:
             strategy=self.config.proxy.rotation_strategy,
         )
         self.stealth = StealthEngine()
+        self.use_network_proxy = use_network_proxy
+        self.network_proxy_url = network_proxy_url
         self._results: list[CrawlResult] = []
     
     async def crawl(
@@ -76,9 +80,14 @@ class BrowserCrawler:
             }
             
             # Add proxy if available
-            proxy_url = self.proxy.get_next()
-            if proxy_url:
-                launch_args["proxy"] = {"server": proxy_url}
+            # Priority: Network OPSEC proxy > regular proxy rotator
+            if self.use_network_proxy:
+                launch_args["proxy"] = {"server": self.network_proxy_url}
+                console.print(f"[cyan]🔒[/] Using network OPSEC proxy: {self.network_proxy_url}")
+            else:
+                proxy_url = self.proxy.get_next()
+                if proxy_url:
+                    launch_args["proxy"] = {"server": proxy_url}
             
             browser = await browser_type.launch(**launch_args)
             

@@ -14,13 +14,19 @@ CREATE TABLE IF NOT EXISTS crawl_attempts (
     proxy_used TEXT,
     tls_fingerprint TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    metadata TEXT  -- JSON blob
+    metadata TEXT,  -- JSON blob
+    -- Vision extraction fields (Fase 1C)
+    vision_confidence REAL,  -- Vision model confidence (0-1)
+    fusion_method TEXT,  -- "fused", "vision_only", "dom_only"
+    extraction_time_ms REAL  -- Time for vision-DOM fusion
 );
 
 -- Indexes for fast querying
 CREATE INDEX IF NOT EXISTS idx_domain ON crawl_attempts(domain);
 CREATE INDEX IF NOT EXISTS idx_failure_class ON crawl_attempts(failure_class);
 CREATE INDEX IF NOT EXISTS idx_timestamp ON crawl_attempts(timestamp);
+CREATE INDEX IF NOT EXISTS idx_fusion_method ON crawl_attempts(fusion_method);
+CREATE INDEX IF NOT EXISTS idx_vision_confidence ON crawl_attempts(vision_confidence);
 
 -- Strategy effectiveness per domain
 CREATE TABLE IF NOT EXISTS strategy_effectiveness (

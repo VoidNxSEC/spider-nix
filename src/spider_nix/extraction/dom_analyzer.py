@@ -1,302 +1,270 @@
-"""DOM analyzer for structural HTML/DOM parsing."""
+"""
+DOM Analyzer for parallel HTML/DOM analysis with position calculation.
 
-import json
-from typing import Any
-from urllib.parse import urljoin
+Extracts all interactive elements from HTML with their bounding boxes,
+generating XPath and CSS selectors for reliable element targeting.
+"""
 
-from lxml import html as lxml_html
-from lxml.cssselect import CSSSelector
+import asyncio
+from typing import List, Optional
 
-from .models import BoundingBox, DOMElement
+from lxml import html, etree
+from bs4 import BeautifulSoup
+
+from .models import DOMElement, BoundingBox
 
 
 class DOMAnalyzer:
-    """Analyze HTML/DOM structure to extract elements with positions.
-
-    Uses lxml for fast parsing and XPath generation.
-    Positions come from browser's getBoundingClientRect via Playwright.
+    """
+    Parallel HTML/DOM analysis with position calculation.
+    
+    Uses both lxml (fast) and BeautifulSoup (robust) for comprehensive parsing.
+    Calculates element positions via Playwright's getBoundingClientRect().
     """
 
-    def __init__(self, viewport_width: int = 1920, viewport_height: int = 1080):
-        """Initialize DOM analyzer.
+    def __init__(self):
+        self.parser = html.HTMLParser()
 
-        Args:
-            viewport_width: Browser viewport width (for normalization)
-            viewport_height: Browser viewport height (for normalization)
-        """
-        self.viewport_width = viewport_width
-        self.viewport_height = viewport_height
-
-    def parse_html(
+    async def analyze_page(
         self,
         html_content: str,
-        base_url: str | None = None,
-        element_positions: dict[str, dict] | None = None,
-    ) -> list[DOMElement]:
-        """Parse HTML and extract DOM elements.
-
-        Args:
-            html_content: Raw HTML content
-            base_url: Base URL for resolving relative links
-            element_positions: Dict mapping xpath -> position data from browser
-
-        Returns:
-            List of parsed DOM elements
+        page_handle=None,  # Playwright page for getBoundingClientRect
+        viewport_width: int = 1920,
+        viewport_height: int = 1080,
+    ) -> List[DOMElement]:
         """
-        try:
-            tree = lxml_html.fromstring(html_content)
-        except Exception as e:
-            # Fallback to recovery mode for malformed HTML
-            try:
-                parser = lxml_html.HTMLParser(recover=True)
-                tree = lxml_html.fromstring(html_content, parser)
-            except Exception:
-                raise ValueError(f"Failed to parse HTML: {e}") from e
-
-        # Make URLs absolute if base_url provided
-        if base_url:
-            tree.make_links_absolute(base_url)
+        Extract all interactive elements from DOM with positions.
+        
+        Args:
+            html_content: Raw HTML string
+            page_handle: Playwright page (optional, for position data)
+            viewport_width: Viewport width for normalization
+            viewport_height: Viewport height for normalization
+            
+        Returns:
+            List of DOM elements with bounding boxes
+        """
+        # Parse HTML with lxml (fast) + BeautifulSoup (robust)
+        tree = html.fromstring(html_content)
+        soup = BeautifulSoup(html_content, 'lxml')
 
         elements = []
 
-        # Extract interactive and content elements
+        # Target interactive elements only
         selectors = [
-            "//a",  # Links
-            "//button",  # Buttons
-            "//input",  # Inputs
-            "//textarea",  # Textareas
-            "//select",  # Dropdowns
-            "//img",  # Images
-            "//h1 | //h2 | //h3 | //h4 | //h5 | //h6",  # Headers
-            "//p",  # Paragraphs
-            "//div[@role='button']",  # DIV buttons
-            "//span[@onclick]",  # Clickable spans
-            "//*[@data-testid]",  # Test IDs (common in modern apps)
+            ("button", "//button"),
+            ("a", "//a[@href]"),
+            ("input", "//input"),
+            ("textarea", "//textarea"),
+            ("select", "//select"),
+            ("form", "//form"),
+            # Additional semantic elements
+            ("nav", "//nav"),
+            ("menu", "//menu"),
         ]
 
-        seen_elements = set()
+        for tag, xpath_query in selectors:
+            nodes = tree.xpath(xpath_query)
 
-        for selector in selectors:
-            for element in tree.xpath(selector):
-                xpath = tree.getpath(element)
-
-                # Avoid duplicates
-                if xpath in seen_elements:
-                    continue
-                seen_elements.add(xpath)
-
-                # Generate CSS selector (simple version)
-                css_selector = self._generate_css_selector(element)
-
-                # Get position if available
-                bounding_box = None
-                if element_positions and xpath in element_positions:
-                    pos = element_positions[xpath]
-                    # Normalize coordinates
-                    bounding_box = BoundingBox(
-                        x=pos.get("x", 0) / self.viewport_width,
-                        y=pos.get("y", 0) / self.viewport_height,
-                        width=pos.get("width", 0) / self.viewport_width,
-                        height=pos.get("height", 0) / self.viewport_height,
-                    )
-
-                # Extract attributes
-                attributes = dict(element.attrib)
-
-                # Get text content
-                text_content = element.text_content().strip() if element.text_content() else None
-
-                # Get inner HTML (first 500 chars to avoid bloat)
+            for node in nodes:
                 try:
-                    inner_html = lxml_html.tostring(element, encoding="unicode")[:500]
-                except Exception:
-                    inner_html = None
+                    # Generate XPath and CSS selector
+                    xpath_expr = tree.getpath(node)
+                    css_selector = self._generate_css_selector(node, tree)
 
-                elements.append(
-                    DOMElement(
-                        tag_name=element.tag,
-                        xpath=xpath,
+                    # Extract attributes
+                    attrs = dict(node.attrib)
+                    text = (node.text_content() or "").strip()
+
+                    # Get position if Playwright page available
+                    bbox = None
+                    if page_handle:
+                        bbox = await self._get_element_position(
+                            page_handle,
+                            css_selector,
+                            viewport_width,
+                            viewport_height
+                        )
+
+                    element = DOMElement(
+                        xpath=xpath_expr,
                         css_selector=css_selector,
-                        bounding_box=bounding_box,
-                        text_content=text_content,
-                        attributes=attributes,
-                        inner_html=inner_html,
+                        tag_name=tag,
+                        text_content=text,
+                        attributes=attrs,
+                        bounding_box=bbox
                     )
-                )
+                    elements.append(element)
+
+                except Exception as e:
+                    # Skip problematic elements
+                    continue
 
         return elements
 
-    def _generate_css_selector(self, element) -> str:
-        """Generate CSS selector for element.
-
-        Creates a simple but unique CSS selector.
-        Prefers: id > class > tag + nth-child
+    def _generate_css_selector(self, node, tree) -> str:
         """
-        # Use ID if available
-        if element.get("id"):
-            return f"#{element.get('id')}"
+        Generate unique CSS selector for element.
+        
+        Priority: ID > unique class > data-testid > nth-child path
+        """
+        # Check for ID (most unique)
+        if node.get('id'):
+            element_id = node.get('id')
+            # Escape special characters in ID
+            escaped_id = element_id.replace(':', '\\:').replace('.', '\\.')
+            return f"#{escaped_id}"
 
-        # Use class if available
-        classes = element.get("class")
-        if classes:
-            class_selector = "." + ".".join(classes.split()[:2])  # Max 2 classes
-            return f"{element.tag}{class_selector}"
+        # Check for data-testid (common in modern apps)
+        if node.get('data-testid'):
+            return f"[data-testid='{node.get('data-testid')}']"
 
-        # Use tag with nth-child
-        parent = element.getparent()
-        if parent is not None:
-            siblings = [e for e in parent if e.tag == element.tag]
+        # Check for unique class
+        classes = node.get('class', '').split()
+        for cls in classes:
+            if cls:
+                # Test if class is unique
+                selector = f"{node.tag}.{cls}"
+                matches = tree.cssselect(selector)
+                if len(matches) == 1:
+                    return selector
+
+        # Fallback: nth-child path (always unique but fragile)
+        return self._generate_nth_child_path(node)
+
+    def _generate_nth_child_path(self, node) -> str:
+        """
+        Generate nth-child CSS path (guaranteed unique but fragile).
+        
+        Example: body > div:nth-child(1) > main:nth-child(2) > button:nth-child(3)
+        """
+        path = []
+        current = node
+
+        while current.getparent() is not None:
+            parent = current.getparent()
+            siblings = [n for n in parent if n.tag == current.tag]
+            
             if len(siblings) > 1:
-                index = siblings.index(element) + 1
-                return f"{element.tag}:nth-child({index})"
+                index = siblings.index(current) + 1
+                path.insert(0, f"{current.tag}:nth-child({index})")
+            else:
+                path.insert(0, current.tag)
+            
+            current = parent
 
-        return element.tag
+        return " > ".join(path)
 
-    def extract_links(self, html_content: str, base_url: str | None = None) -> list[str]:
-        """Extract all links from HTML.
-
-        Args:
-            html_content: Raw HTML content
-            base_url: Base URL for resolving relative links
-
-        Returns:
-            List of absolute URLs
+    async def _get_element_position(
+        self,
+        page,
+        css_selector: str,
+        viewport_width: int,
+        viewport_height: int
+    ) -> Optional[BoundingBox]:
+        """
+        Get element position using Playwright's getBoundingClientRect().
+        
+        Returns normalized bounding box (0-1 coordinates).
         """
         try:
-            tree = lxml_html.fromstring(html_content)
-        except Exception:
-            return []
+            # Query element
+            element = await page.query_selector(css_selector)
+            if not element:
+                return None
 
-        if base_url:
-            tree.make_links_absolute(base_url)
+            # Get bounding box via JS
+            box = await element.bounding_box()
+            if not box:
+                return None
 
-        links = set()
-        for element in tree.xpath("//a[@href]"):
-            href = element.get("href")
-            if href and not href.startswith(("#", "javascript:", "mailto:")):
-                links.add(href)
+            # Normalize to 0-1 coordinates
+            return BoundingBox(
+                x=box['x'] / viewport_width,
+                y=box['y'] / viewport_height,
+                width=box['width'] / viewport_width,
+                height=box['height'] / viewport_height
+            )
 
-        return list(links)
+        except Exception as e:
+            # Element not visible, removed, or inaccessible
+            return None
 
-    def extract_metadata(self, html_content: str) -> dict[str, Any]:
-        """Extract page metadata (title, description, OG tags, etc).
-
-        Args:
-            html_content: Raw HTML content
-
-        Returns:
-            Dictionary of metadata
+    async def get_all_clickable_elements(
+        self,
+        page,
+        viewport_width: int = 1920,
+        viewport_height: int = 1080
+    ) -> List[DOMElement]:
         """
-        try:
-            tree = lxml_html.fromstring(html_content)
-        except Exception:
-            return {}
-
-        metadata = {}
-
-        # Title
-        title_elements = tree.xpath("//title/text()")
-        if title_elements:
-            metadata["title"] = title_elements[0].strip()
-
-        # Meta description
-        desc_elements = tree.xpath("//meta[@name='description']/@content")
-        if desc_elements:
-            metadata["description"] = desc_elements[0].strip()
-
-        # Open Graph tags
-        og_tags = {}
-        for meta in tree.xpath("//meta[starts-with(@property, 'og:')]"):
-            prop = meta.get("property", "").replace("og:", "")
-            content = meta.get("content", "")
-            if prop and content:
-                og_tags[prop] = content
-        if og_tags:
-            metadata["og"] = og_tags
-
-        # Twitter Card tags
-        twitter_tags = {}
-        for meta in tree.xpath("//meta[starts-with(@name, 'twitter:')]"):
-            name = meta.get("name", "").replace("twitter:", "")
-            content = meta.get("content", "")
-            if name and content:
-                twitter_tags[name] = content
-        if twitter_tags:
-            metadata["twitter"] = twitter_tags
-
-        # Canonical URL
-        canonical = tree.xpath("//link[@rel='canonical']/@href")
-        if canonical:
-            metadata["canonical"] = canonical[0]
-
-        return metadata
-
-    @staticmethod
-    def get_playwright_position_script() -> str:
-        """JavaScript to inject in Playwright to get element positions.
-
-        Returns positions as dict mapping XPath -> {x, y, width, height}
+        Alternative: Get all clickable elements via JS query.
+        
+        Uses document.querySelectorAll for elements with:
+        - onclick handler
+        - cursor: pointer
+        - role="button"
         """
-        return """
+        js_query = """
         () => {
-            const positions = {};
-
-            // Helper to get XPath for element
-            function getXPath(element) {
-                if (element.id) {
-                    return `//*[@id="${element.id}"]`;
-                }
-
-                const parts = [];
-                let current = element;
-
-                while (current && current.nodeType === Node.ELEMENT_NODE) {
-                    let index = 0;
-                    let sibling = current.previousSibling;
-
-                    while (sibling) {
-                        if (sibling.nodeType === Node.ELEMENT_NODE &&
-                            sibling.nodeName === current.nodeName) {
-                            index++;
-                        }
-                        sibling = sibling.previousSibling;
-                    }
-
-                    const tagName = current.nodeName.toLowerCase();
-                    const pathIndex = index > 0 ? `[${index + 1}]` : '';
-                    parts.unshift(`${tagName}${pathIndex}`);
-
-                    current = current.parentNode;
-                }
-
-                return '/' + parts.join('/');
-            }
-
-            // Get positions for all visible elements
-            const selectors = [
-                'a', 'button', 'input', 'textarea', 'select',
-                'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                'p', '[role="button"]', '[onclick]', '[data-testid]'
-            ];
-
-            selectors.forEach(selector => {
-                const elements = document.querySelectorAll(selector);
-                elements.forEach(element => {
-                    const rect = element.getBoundingClientRect();
-
-                    // Only include visible elements
-                    if (rect.width > 0 && rect.height > 0) {
-                        const xpath = getXPath(element);
-                        positions[xpath] = {
-                            x: rect.left + window.scrollX,
-                            y: rect.top + window.scrollY,
-                            width: rect.width,
-                            height: rect.height
-                        };
+            const elements = [];
+            const clickable = document.querySelectorAll(
+                'button, a[href], input[type="button"], input[type="submit"], ' +
+                '[onclick], [role="button"], [role="link"], ' +
+                '*[style*="cursor: pointer"]'
+            );
+            
+            clickable.forEach((el, index) => {
+                const rect = el.getBoundingClientRect();
+                elements.push({
+                    tag: el.tagName.toLowerCase(),
+                    text: el.textContent?.trim() || '',
+                    id: el.id || '',
+                    className: el.className || '',
+                    bbox: {
+                        x: rect.x,
+                        y: rect.y,
+                        width: rect.width,
+                        height: rect.height
                     }
                 });
             });
-
-            return positions;
+            
+            return elements;
         }
         """
+
+        try:
+            result = await page.evaluate(js_query)
+            
+            elements = []
+            for item in result:
+                bbox = BoundingBox(
+                    x=item['bbox']['x'] / viewport_width,
+                    y=item['bbox']['y'] / viewport_height,
+                    width=item['bbox']['width'] / viewport_width,
+                    height=item['bbox']['height'] / viewport_height
+                )
+
+                # Generate CSS selector from ID or class
+                if item['id']:
+                    css_selector = f"#{item['id']}"
+                elif item['className']:
+                    classes = item['className'].split()[0] if item['className'] else ''
+                    css_selector = f"{item['tag']}.{classes}" if classes else item['tag']
+                else:
+                    css_selector = item['tag']
+
+                element = DOMElement(
+                    xpath=f"//{item['tag']}",  # Simplified XPath
+                    css_selector=css_selector,
+                    tag_name=item['tag'],
+                    text_content=item['text'],
+                    attributes={'id': item['id'], 'class': item['className']},
+                    bounding_box=bbox
+                )
+                elements.append(element)
+
+            return elements
+
+        except Exception as e:
+            return []

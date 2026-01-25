@@ -142,6 +142,7 @@ class SessionManager:
     - Automatic session refresh
     - Cookie management
     - CSRF token extraction
+    - Network OPSEC (Go proxy integration)
     """
 
     def __init__(
@@ -149,10 +150,14 @@ class SessionManager:
         session_ttl_minutes: int = 60,
         auto_refresh: bool = True,
         refresh_before_expiry_minutes: int = 5,
+        use_network_proxy: bool = True,
+        network_proxy_url: str = "http://127.0.0.1:8080",
     ):
         self.session_ttl_minutes = session_ttl_minutes
         self.auto_refresh = auto_refresh
         self.refresh_before_expiry_minutes = refresh_before_expiry_minutes
+        self.use_network_proxy = use_network_proxy
+        self.network_proxy_url = network_proxy_url
 
         self.sessions: dict[str, Session] = {}
         self.login_handlers: dict[str, Callable] = {}
@@ -197,13 +202,32 @@ class SessionManager:
 
             return session
 
+    def _create_client_with_proxy(self) -> httpx.AsyncClient:
+        """Create HTTP client with network proxy if enabled."""
+        if self.use_network_proxy:
+            # Route all traffic through Go proxy (uTLS fingerprint randomization)
+            proxies = {
+                "http://": self.network_proxy_url,
+                "https://": self.network_proxy_url,
+            }
+            return httpx.AsyncClient(
+                proxies=proxies,
+                timeout=30.0,
+                follow_redirects=True,
+            )
+        else:
+            return httpx.AsyncClient(
+                timeout=30.0,
+                follow_redirects=True,
+            )
+
     async def _default_login(
         self,
         login_url: str,
         credentials: dict[str, str],
     ) -> Session:
         """Default login implementation."""
-        async with httpx.AsyncClient() as client:
+        async with self._create_client_with_proxy() as client:
             # Attempt login
             response = await client.post(login_url, data=credentials)
 

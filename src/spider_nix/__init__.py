@@ -14,6 +14,9 @@ from .config import (
     CrawlerConfig,
     ProxyConfig,
     StealthConfig,
+    NetworkConfig,
+    VisionConfig,
+    MLConfig,
     get_preset,
     list_presets,
 )
@@ -44,8 +47,8 @@ from .extraction import (
     DOMElement,
     FusedElement,
     FusionEngine,
+    MultimodalExtractor,
     VisionDetection,
-    VisionExtractor,
 )
 
 # ML feedback system (Phase 1)
@@ -66,6 +69,9 @@ __all__ = [
     "CrawlerConfig",
     "ProxyConfig",
     "StealthConfig",
+    "NetworkConfig",
+    "VisionConfig",
+    "MLConfig",
     "AGGRESSIVE_CONFIG",
     "STEALTH_CONFIG",
     "BALANCED_CONFIG",
@@ -105,7 +111,7 @@ __all__ = [
     "ConfigurationWizard",
     "run_wizard",
     # Multimodal Extraction (Phase 1)
-    "VisionExtractor",
+    "MultimodalExtractor",
     "DOMAnalyzer",
     "FusionEngine",
     "BoundingBox",

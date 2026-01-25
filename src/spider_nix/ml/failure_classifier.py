@@ -1,258 +1,276 @@
-"""Rule-based failure classifier (MVP - no ML model yet).
+"""
+Failure Classifier - Rule-based classification of crawl failures.
 
-Phase 1: Use heuristic rules to classify failures.
-Phase 2: Train ML model (PyTorch/XGBoost) on labeled data.
+Classifies why HTTP requests fail into 8 categories:
+- SUCCESS
+- RATE_LIMIT
+- FINGERPRINT_DETECTED (bot detection)
+- CAPTCHA
+- IP_BLOCKED
+- TIMEOUT
+- SERVER_ERROR
+- NETWORK_ERROR
+- UNKNOWN
+
+This enables adaptive strategy selection based on failure patterns.
 """
 
-import re
-from typing import Any
+from enum import Enum
+from typing import Dict, Optional
+from dataclasses import dataclass
 
-from .models import FailureClass
+
+class FailureClass(str, Enum):
+    """Failure classification types."""
+    SUCCESS = "success"
+    RATE_LIMIT = "rate_limit"
+    FINGERPRINT_DETECTED = "fingerprint_detected"
+    CAPTCHA = "captcha"
+    IP_BLOCKED = "ip_blocked"
+    TIMEOUT = "timeout"
+    SERVER_ERROR = "server_error"
+    NETWORK_ERROR = "network_error"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class ClassificationResult:
+    """Result of failure classification."""
+    failure_class: FailureClass
+    confidence: float  # 0.0-1.0
+    evidence: Dict[str, any]
 
 
 class FailureClassifier:
-    """Classify crawl failures using heuristic rules.
-
-    In Phase 2, this will be replaced with a trained ML model.
+    """
+    Rule-based failure classification (MVP).
+    
+    Uses heuristics to classify why requests fail:
+    - Status code patterns
+    - Response body keywords
+    - Headers analysis
+    - Exception types
+    
+    Future: Replace with ML classifier trained on feedback.db
     """
 
-    # Patterns indicating different failure types
-    CAPTCHA_PATTERNS = [
-        r"captcha",
-        r"recaptcha",
-        r"hcaptcha",
-        r"cloudflare",
-        r"access denied",
-        r"challenge",
-        r"bot detection",
-        r"automated access",
-    ]
-
-    RATE_LIMIT_PATTERNS = [
-        r"rate limit",
-        r"too many requests",
-        r"throttled",
-        r"retry after",
-        r"slow down",
-    ]
-
-    FINGERPRINT_PATTERNS = [
-        r"suspicious activity",
-        r"unusual behavior",
-        r"automated",
-        r"bot",
-        r"blocked",
-        r"access restricted",
-    ]
-
     def __init__(self):
-        """Initialize classifier."""
-        self.captcha_regex = re.compile(
-            "|".join(self.CAPTCHA_PATTERNS), re.IGNORECASE
-        )
-        self.rate_limit_regex = re.compile(
-            "|".join(self.RATE_LIMIT_PATTERNS), re.IGNORECASE
-        )
-        self.fingerprint_regex = re.compile(
-            "|".join(self.FINGERPRINT_PATTERNS), re.IGNORECASE
-        )
+        """Initialize classifier with detection patterns."""
+        # CAPTCHA detection patterns
+        self.captcha_indicators = [
+            "recaptcha", "hcaptcha", "cloudflare challenge",
+            "verify you are human", "captcha", "cf-chl-bypass",
+            "bot detection", "security check"
+        ]
+        
+        # Bot detection indicators
+        self.bot_indicators = [
+            "access denied", "blocked", "automated",
+            "bot detected", "suspicious activity",
+            "datadome", "perimeterx", "_px", "imperva"
+        ]
+        
+        # Rate limit indicators
+        self.rate_limit_indicators = [
+            "rate limit", "too many requests",
+            "quota exceeded", "throttled",
+            "retry after"
+        ]
+        
+        # WAF headers
+        self.waf_headers = {
+            "cloudflare": ["cf-ray", "cf-cache-status"],
+            "akamai": ["akamai-grn"],
+            "incapsula": ["x-cdn"],
+            "aws-waf": ["x-amzn-requestid"],
+        }
 
     def classify(
         self,
         status_code: int,
+        response_headers: Optional[Dict[str, str]],
+        response_body: Optional[str],
         response_time_ms: float,
-        response_body: str | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> FailureClass:
-        """Classify a crawl attempt.
-
-        Args:
-            status_code: HTTP status code (0 if no response)
-            response_time_ms: Response time in milliseconds
-            response_body: Response body text (optional)
-            headers: Response headers (optional)
-
-        Returns:
-            Classified failure type
+        exception: Optional[Exception] = None
+    ) -> ClassificationResult:
         """
-        # Success
-        if 200 <= status_code < 300:
-            return FailureClass.SUCCESS
-
-        # Timeout (no response or very slow)
-        if status_code == 0 or response_time_ms > 30000:
-            return FailureClass.TIMEOUT
-
-        # Rate limiting
-        if status_code == 429:
-            return FailureClass.RATE_LIMIT
-
-        # Check for rate limit in headers
-        if headers:
-            retry_after = headers.get("Retry-After") or headers.get("retry-after")
-            if retry_after:
-                return FailureClass.RATE_LIMIT
-
-        # Forbidden - likely blocking
-        if status_code == 403:
-            # Try to determine specific type from response body
-            if response_body:
-                if self.captcha_regex.search(response_body):
-                    return FailureClass.CAPTCHA
-                if self.fingerprint_regex.search(response_body):
-                    return FailureClass.FINGERPRINT_DETECTED
-
-            # Default to IP blocked for 403
-            return FailureClass.IP_BLOCKED
-
-        # CAPTCHA detection from response
-        if response_body and self.captcha_regex.search(response_body):
-            return FailureClass.CAPTCHA
-
-        # Check for rate limiting in body
-        if response_body and self.rate_limit_regex.search(response_body):
-            return FailureClass.RATE_LIMIT
-
-        # Server errors
-        if 500 <= status_code < 600:
-            return FailureClass.SERVER_ERROR
-
-        # Slow response with success code (possible soft rate limiting)
-        if 200 <= status_code < 300 and response_time_ms > 10000:
-            return FailureClass.RATE_LIMIT
-
-        # Unknown
-        return FailureClass.UNKNOWN
-
-    def extract_features(
-        self,
-        status_code: int,
-        response_time_ms: float,
-        response_size: int,
-        headers: dict[str, str] | None = None,
-        proxy_used: bool = False,
-        hour_of_day: int = 0,
-    ) -> dict[str, Any]:
-        """Extract features for ML training (Phase 2).
+        Classify why request failed.
 
         Args:
             status_code: HTTP status code
-            response_time_ms: Response time
-            response_size: Response body size
-            headers: Response headers
-            proxy_used: Whether proxy was used
-            hour_of_day: Hour of day (0-23)
+            response_headers: Response headers dict (can be None)
+            response_body: Response body text (can be None)
+            response_time_ms: Response time in milliseconds
+            exception: Exception raised (if any)
 
         Returns:
-            Feature dictionary for ML model
+            ClassificationResult with failure class and confidence
         """
-        features = {
-            "status_code": status_code,
-            "response_time_ms": response_time_ms,
-            "response_size": response_size,
-            "proxy_used": int(proxy_used),
-            "hour_of_day": hour_of_day,
-            "is_client_error": int(400 <= status_code < 500),
-            "is_server_error": int(500 <= status_code < 600),
-            "is_slow": int(response_time_ms > 5000),
-            "is_very_slow": int(response_time_ms > 10000),
-            "has_retry_after": 0,
-            "response_size_category": self._categorize_size(response_size),
-        }
-
-        if headers:
-            features["has_retry_after"] = int(
-                "Retry-After" in headers or "retry-after" in headers
+        # Handle None values
+        response_headers = response_headers or {}
+        response_body = response_body or ""
+        body_lower = response_body.lower()
+        
+        # 1. SUCCESS
+        if 200 <= status_code < 300:
+            # Check for soft blocks (200 but blocked content)
+            if self._is_soft_block(response_body):
+                return ClassificationResult(
+                    failure_class=FailureClass.FINGERPRINT_DETECTED,
+                    confidence=0.85,
+                    evidence={"reason": "soft_block_in_200", "body_length": len(response_body)}
+                )
+            return ClassificationResult(
+                failure_class=FailureClass.SUCCESS,
+                confidence=1.0,
+                evidence={"status_code": status_code}
             )
 
-        return features
+        # 2. RATE_LIMIT
+        if status_code == 429 or any(ind in body_lower for ind in self.rate_limit_indicators):
+            return ClassificationResult(
+                failure_class=FailureClass.RATE_LIMIT,
+                confidence=0.95,
+                evidence={
+                    "status_code": status_code,
+                    "retry_after": response_headers.get("Retry-After"),
+                    "matched_indicator": next((ind for ind in self.rate_limit_indicators if ind in body_lower), None)
+                }
+            )
 
-    def _categorize_size(self, size: int) -> int:
-        """Categorize response size into buckets.
+        # 3. CAPTCHA
+        if self._is_captcha(response_body, response_headers):
+            return ClassificationResult(
+                failure_class=FailureClass.CAPTCHA,
+                confidence=0.90,
+                evidence={
+                    "status_code": status_code,
+                    "captcha_provider": self._detect_captcha_provider(response_body),
+                    "waf": self._detect_waf(response_headers)
+                }
+            )
 
-        Args:
-            size: Response size in bytes
+        # 4. IP_BLOCKED (check before FINGERPRINT_DETECTED for better priority)
+        if status_code == 403 and ("ip" in body_lower and "block" in body_lower):
+            return ClassificationResult(
+                failure_class=FailureClass.IP_BLOCKED,
+                confidence=0.85,
+                evidence={"status_code": status_code, "reason": "ip_block_mentioned"}
+            )
 
-        Returns:
-            Size category (0-5)
+        # 5. FINGERPRINT_DETECTED (bot detection)
+        if status_code in [403, 401] or self._is_bot_challenge(response_body, response_headers):
+            return ClassificationResult(
+                failure_class=FailureClass.FINGERPRINT_DETECTED,
+                confidence=0.85,
+                evidence={
+                    "status_code": status_code,
+                    "waf": self._detect_waf(response_headers),
+                    "bot_indicator": next((ind for ind in self.bot_indicators if ind in body_lower), None)
+                }
+            )
+
+        # 6. TIMEOUT
+        if exception and isinstance(exception, TimeoutError):
+            return ClassificationResult(
+                failure_class=FailureClass.TIMEOUT,
+                confidence=1.0,
+                evidence={"response_time_ms": response_time_ms, "exception": str(exception)}
+            )
+
+        # 7. SERVER_ERROR
+        if 500 <= status_code < 600:
+            return ClassificationResult(
+                failure_class=FailureClass.SERVER_ERROR,
+                confidence=0.95,
+                evidence={"status_code": status_code}
+            )
+
+        # 8. NETWORK_ERROR
+        if exception and isinstance(exception, (ConnectionError, OSError)):
+            return ClassificationResult(
+                failure_class=FailureClass.NETWORK_ERROR,
+                confidence=0.95,
+                evidence={"exception": str(exception)}
+            )
+
+        # 9. UNKNOWN
+        return ClassificationResult(
+            failure_class=FailureClass.UNKNOWN,
+            confidence=0.5,
+            evidence={"status_code": status_code, "reason": "no_pattern_matched"}
+        )
+
+    def _is_captcha(self, body: str, headers: Dict[str, str]) -> bool:
+        """Detect CAPTCHA challenges."""
+        body_lower = body.lower()
+        return any(indicator in body_lower for indicator in self.captcha_indicators)
+
+    def _detect_captcha_provider(self, body: str) -> str:
+        """Identify CAPTCHA provider."""
+        body_lower = body.lower()
+        if "recaptcha" in body_lower:
+            return "recaptcha"
+        elif "hcaptcha" in body_lower:
+            return "hcaptcha"
+        elif "cloudflare" in body_lower:
+            return "cloudflare"
+        elif "funcaptcha" in body_lower or "arkose" in body_lower:
+            return "funcaptcha"
+        return "unknown"
+
+    def _is_bot_challenge(self, body: str, headers: Dict[str, str]) -> bool:
+        """Detect bot challenges (Cloudflare, DataDome, PerimeterX)."""
+        body_lower = body.lower()
+        
+        # Cloudflare
+        if headers.get("Server") == "cloudflare" and "cf_clearance" in body_lower:
+            return True
+
+        # DataDome
+        if "datadome" in body_lower:
+            return True
+
+        # PerimeterX
+        if "_px" in body_lower or "perimeterx" in body_lower:
+            return True
+
+        # Generic bot block messages
+        return any(ind in body_lower for ind in self.bot_indicators)
+
+    def _is_soft_block(self, body: str) -> bool:
         """
-        if size == 0:
-            return 0
-        elif size < 1024:
-            return 1
-        elif size < 10240:
-            return 2
-        elif size < 102400:
-            return 3
-        elif size < 1048576:
-            return 4
-        else:
-            return 5
+        Detect soft blocks (200 status but blocked content).
 
-    def should_retry(
-        self,
-        failure_class: FailureClass,
-        attempt_number: int,
-        max_retries: int = 3,
-    ) -> bool:
-        """Determine if request should be retried based on failure type.
-
-        Args:
-            failure_class: Classified failure type
-            attempt_number: Current attempt number (1-indexed)
-            max_retries: Maximum retry attempts
-
-        Returns:
-            Whether to retry
+        Indicators:
+        - Suspiciously small response (<200 bytes) with block keywords
+        - Generic error pages with block keywords
         """
-        if attempt_number >= max_retries:
-            return False
+        body_lower = body.lower()
+        soft_block_indicators = [
+            "access denied", "blocked", "forbidden",
+            "not authorized", "access restricted"
+        ]
 
-        # Always retry timeouts and server errors
-        if failure_class in [FailureClass.TIMEOUT, FailureClass.SERVER_ERROR]:
+        # Only treat as soft block if BOTH small AND has keywords
+        # OR has strong block keywords regardless of size
+        has_block_keyword = any(ind in body_lower for ind in soft_block_indicators)
+
+        if len(body) < 200 and has_block_keyword:
             return True
 
-        # Retry rate limits with backoff
-        if failure_class == FailureClass.RATE_LIMIT:
+        # Strong indicators even with normal size
+        if "access denied" in body_lower or "access restricted" in body_lower:
             return True
-
-        # Don't retry CAPTCHAs or fingerprint detection (need strategy change)
-        if failure_class in [FailureClass.CAPTCHA, FailureClass.FINGERPRINT_DETECTED]:
-            return False
-
-        # Retry IP blocks (with different proxy)
-        if failure_class == FailureClass.IP_BLOCKED:
-            return True
-
-        # Retry unknowns
-        if failure_class == FailureClass.UNKNOWN:
-            return attempt_number < 2
 
         return False
 
-    def get_retry_delay_ms(
-        self,
-        failure_class: FailureClass,
-        attempt_number: int,
-    ) -> int:
-        """Get recommended retry delay in milliseconds.
+    def _detect_waf(self, headers: Dict[str, str]) -> Optional[str]:
+        """Detect Web Application Firewall."""
+        headers_lower = {k.lower(): v for k, v in headers.items()}
+        
+        for waf, header_keys in self.waf_headers.items():
+            if any(key in headers_lower for key in header_keys):
+                return waf
 
-        Args:
-            failure_class: Classified failure type
-            attempt_number: Current attempt number
-
-        Returns:
-            Delay in milliseconds
-        """
-        base_delays = {
-            FailureClass.TIMEOUT: 5000,
-            FailureClass.RATE_LIMIT: 10000,
-            FailureClass.SERVER_ERROR: 2000,
-            FailureClass.IP_BLOCKED: 1000,
-            FailureClass.UNKNOWN: 2000,
-        }
-
-        base = base_delays.get(failure_class, 1000)
-
-        # Exponential backoff
-        return base * (2 ** (attempt_number - 1))
+        return None

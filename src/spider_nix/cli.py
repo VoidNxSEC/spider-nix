@@ -1475,3 +1475,93 @@ def generate_html_report(
 
 if __name__ == "__main__":
     app()
+
+
+@recon_app.command("multimodal")
+def multimodal_extract(
+    url: str = typer.Argument(..., help="Target URL"),
+    output: Path = typer.Option("extraction.json", "--output", "-o", help="Output JSON file"),
+    screenshot: Optional[Path] = typer.Option(None, "--screenshot", "-s", help="Save screenshot path"),
+    headless: bool = typer.Option(True, "--headless", help="Run browser headless"),
+    use_proxy: bool = typer.Option(True, "--proxy", help="Use network OPSEC proxy"),
+    vision_model: str = typer.Option("llava-v1.5-7b-q4", "--model", "-m", help="Vision model to use"),
+    iou_threshold: float = typer.Option(0.5, "--iou", help="IoU threshold for fusion (0-1)"),
+):
+    """
+    🤖 Multimodal extraction - Vision + DOM fusion for CSS-independent scraping.
+    
+    Uses vision AI to detect elements visually, then fuses with DOM for
+    high-confidence extractions resilient to CSS class changes.
+    
+    Example:
+        spider-nix recon multimodal https://example.com
+        spider-nix recon multimodal https://example.com --model llava-v1.5-7b-q4
+        spider-nix recon multimodal https://example.com --iou 0.7 --proxy
+    """
+    import json
+    from .extraction import MultimodalExtractor
+
+    console.print(f"\n[bold]🤖 Multimodal Extraction[/]\n")
+    console.print(f"Target: [cyan]{url}[/]")
+    console.print(f"Vision Model: [yellow]{vision_model}[/]")
+    console.print(f"IoU Threshold: [yellow]{iou_threshold}[/]")
+    console.print(f"Network Proxy: [{'green' if use_proxy else 'red'}]{'enabled' if use_proxy else 'disabled'}[/]\n")
+
+    async def run():
+        extractor = MultimodalExtractor(
+            iou_threshold=iou_threshold,
+            vision_model=vision_model
+        )
+
+        try:
+            # Extract from URL
+            console.print("[cyan]→[/] Extracting elements...")
+            result = await extractor.extract_from_url(
+                url,
+                headless=headless,
+                use_network_proxy=use_proxy
+            )
+
+            # Save results
+            with open(output, 'w') as f:
+                json.dump(result.to_dict(), f, indent=2)
+
+            # Print summary
+            console.print(f"\n[bold green]✓ Extraction Complete[/]\n")
+
+            # Results table
+            table = Table(title="Extraction Results")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="yellow")
+
+            table.add_row("URL", url)
+            table.add_row("Total Elements", str(result.total_elements))
+            table.add_row("Fused (High Conf)", f"{result.fused_count} ({result.fusion_success_rate:.1f}%)")
+            table.add_row("Vision Only", str(result.vision_only_count))
+            table.add_row("DOM Only", str(result.dom_only_count))
+            table.add_row("Resilient Elements", str(len(result.get_resilient_elements())))
+            table.add_row("Average IoU", f"{result.average_iou:.3f}")
+            table.add_row("Extraction Time", f"{result.extraction_time_ms:.0f}ms")
+            table.add_row("Model Inference", f"{result.model_inference_time_ms:.0f}ms")
+            table.add_row("Fusion Time", f"{result.fusion_time_ms:.0f}ms")
+
+            console.print(table)
+
+            # Elements breakdown
+            console.print(f"\n[bold]Detected Elements:[/]")
+            element_types = {}
+            for elem in result.fused_elements:
+                etype = elem.vision.element_type
+                element_types[etype] = element_types.get(etype, 0) + 1
+
+            for etype, count in sorted(element_types.items(), key=lambda x: x[1], reverse=True):
+                console.print(f"  • {etype}: {count}")
+
+            console.print(f"\n[green]✓ Results saved to: {output}[/]")
+            if screenshot:
+                console.print(f"[green]✓ Screenshot: {result.screenshot_path}[/]")
+
+        finally:
+            await extractor.close()
+
+    asyncio.run(run())

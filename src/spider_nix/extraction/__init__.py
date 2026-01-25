@@ -1,27 +1,29 @@
-"""Multimodal extraction system for SpiderNix.
+"""
+Multimodal extraction module for spider-nix.
 
-This module provides enterprise-grade web content extraction combining:
-- Vision AI (CLIP/Qwen-VL) for screenshot analysis
-- DOM parsing for structural content extraction
-- Fusion engine for mapping visual detections to DOM elements
+Vision-DOM fusion pipeline for CSS-independent element extraction.
 """
 
 from .models import (
     BoundingBox,
+    VisionDetection,
     DOMElement,
     FusedElement,
-    VisionDetection,
+    ExtractionResult,
 )
-from .vision_extractor import VisionExtractor
 from .dom_analyzer import DOMAnalyzer
 from .fusion_engine import FusionEngine
+from .extractor import MultimodalExtractor
+from .vision_extractor import VisionExtractor
 
 __all__ = [
     "BoundingBox",
     "VisionDetection",
     "DOMElement",
     "FusedElement",
-    "VisionExtractor",
+    "ExtractionResult",
     "DOMAnalyzer",
     "FusionEngine",
+    "MultimodalExtractor",
+    "VisionExtractor",
 ]

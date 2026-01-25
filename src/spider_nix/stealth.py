@@ -6,17 +6,41 @@ from fake_useragent import UserAgent
 
 
 # Pool of realistic browser fingerprints
+# Expanded with MacBook, 4K, and ultrawide resolutions
 SCREEN_RESOLUTIONS = [
+    # Common Windows
     (1920, 1080), (1366, 768), (1536, 864), (1440, 900),
-    (1280, 720), (2560, 1440), (3840, 2160), (1600, 900),
+    (1280, 720), (1600, 900), (1680, 1050), (1280, 1024),
+    # High-end Windows/Linux
+    (2560, 1440), (3840, 2160), (2560, 1080),  # Ultrawide
+    # MacBook Pro
+    (2560, 1600), (3024, 1964), (3456, 2234),  # M1/M2/M3 Pro
+    (3840, 2400),  # 16" M1 Max
+    # MacBook Air
+    (2560, 1664), (2880, 1800),
 ]
 
 WEBGL_VENDORS = [
-    "Google Inc. (NVIDIA)",
-    "Google Inc. (Intel)",
-    "Google Inc. (AMD)",
-    "Intel Inc.",
-    "NVIDIA Corporation",
+    # NVIDIA (Windows/Linux)
+    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060)"),
+    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3070)"),
+    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060)"),
+    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660)"),
+    # Intel (Windows)
+    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics 630)"),
+    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics)"),
+    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) HD Graphics 620)"),
+    # AMD (Windows/Linux)
+    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 6800 XT)"),
+    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 7900 XT)"),
+    ("AMD", "AMD Radeon RX 6700 XT"),
+    # Apple Silicon (macOS)
+    ("Apple", "Apple M1 GPU"),
+    ("Apple", "Apple M2 GPU"),
+    ("Apple", "Apple M3 GPU"),
+    # Intel macOS (legacy)
+    ("Intel Inc.", "Intel Iris OpenGL Engine"),
+    ("Intel Inc.", "Intel Iris Pro OpenGL Engine"),
 ]
 
 LANGUAGES = [
@@ -35,10 +59,14 @@ TIMEZONES = [
 
 class StealthEngine:
     """Generate realistic browser fingerprints to avoid detection."""
-    
+
     def __init__(self, seed: int | None = None):
         self._rng = random.Random(seed)
         self._ua = UserAgent(browsers=["chrome", "firefox", "edge"])
+
+        # Per-session noise factors (not per-request)
+        self._canvas_noise = self._rng.uniform(0.00001, 0.0001)
+        self._audio_noise = self._rng.uniform(0.000001, 0.00002)
     
     def get_user_agent(self) -> str:
         """Get random realistic user agent."""
@@ -66,23 +94,39 @@ class StealthEngine:
     def get_fingerprint(self) -> dict[str, Any]:
         """Generate randomized browser fingerprint."""
         resolution = self._rng.choice(SCREEN_RESOLUTIONS)
-        
+        webgl_vendor, webgl_renderer = self._rng.choice(WEBGL_VENDORS)
+
+        # Correlate platform with screen resolution for realism
+        if resolution in [(2560, 1600), (3024, 1964), (3456, 2234), (3840, 2400), (2560, 1664), (2880, 1800)]:
+            platform = "MacIntel"
+            # Ensure Apple GPU for MacBooks
+            if not webgl_vendor.startswith("Apple"):
+                webgl_vendor, webgl_renderer = ("Apple", "Apple M1 GPU")
+        else:
+            platform = self._rng.choice(["Win32", "Linux x86_64"])
+
+        # Realistic pixel ratios
+        if platform == "MacIntel":
+            pixel_ratio = 2.0  # Retina displays
+        else:
+            pixel_ratio = self._rng.choice([1, 1.25, 1.5, 2])
+
         return {
             "screen": {
                 "width": resolution[0],
                 "height": resolution[1],
-                "colorDepth": 24,
-                "pixelRatio": self._rng.choice([1, 1.25, 1.5, 2]),
+                "colorDepth": self._rng.choice([24, 30]),  # 30-bit for high-end displays
+                "pixelRatio": pixel_ratio,
             },
             "webgl": {
-                "vendor": self._rng.choice(WEBGL_VENDORS),
-                "renderer": f"ANGLE (NVIDIA, NVIDIA GeForce GTX {self._rng.randint(1060, 4090)})",
+                "vendor": webgl_vendor,
+                "renderer": webgl_renderer,
             },
             "timezone": self._rng.choice(TIMEZONES),
             "language": self._rng.choice(LANGUAGES).split(",")[0],
-            "platform": self._rng.choice(["Win32", "Linux x86_64", "MacIntel"]),
-            "hardwareConcurrency": self._rng.choice([4, 8, 12, 16]),
-            "deviceMemory": self._rng.choice([4, 8, 16, 32]),
+            "platform": platform,
+            "hardwareConcurrency": self._rng.choice([4, 8, 12, 16, 20, 24]),  # Modern CPUs
+            "deviceMemory": self._rng.choice([4, 8, 16, 32, 64]),  # 64GB for workstations
         }
     
     def get_random_delay_ms(self, min_ms: int = 500, max_ms: int = 3000) -> int:
@@ -95,9 +139,9 @@ class StealthEngine:
         """JavaScript to inject for Playwright stealth (enterprise anti-detection)."""
         fingerprint = self.get_fingerprint()
 
-        # Generate noise seeds
-        canvas_noise = self._rng.random() * 0.0001
-        audio_noise = self._rng.random() * 0.00001
+        # Use per-session noise factors
+        canvas_noise = self._canvas_noise
+        audio_noise = self._audio_noise
 
         return f"""
         // ============================================================
