@@ -32,7 +32,7 @@ async def scrape_hackernews():
     # Crawl
     print("📡 Fetching https://news.ycombinator.com...")
     results = await spider.crawl(
-        "https://news.ycombinator.com",
+        "https://reddit.com",
         max_pages=1,
         follow_links=False,
     )
