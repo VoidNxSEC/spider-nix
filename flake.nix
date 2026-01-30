@@ -24,7 +24,9 @@
             aiohttp
             aiosqlite
             pydantic
-            cssselect
+
+            # Web automation (crawlee substitute)
+            playwright
 
             # OSINT
             aiodns
@@ -48,6 +50,7 @@
             scikit-learn
             numpy
             pandas
+            scipy
 
             # Orchestration (Phase 2)
             # prefect (Phase 2)
@@ -73,6 +76,7 @@
             playwright-driver.browsers
             nodePackages.npm
             just
+            playwright
 
             uv
             pre-commit
@@ -127,22 +131,35 @@
           ];
 
           propagatedBuildInputs = with pkgs.python313Packages; [
+            # Core HTTP/async
             httpx
             aiohttp
             aiosqlite
             pydantic
+
+            # Web automation (crawlee substitute)
+            playwright
+
+            # OSINT
             aiodns
             pycares
             python-whois
+
+            # CLI
             typer
             rich
             fake-useragent
+
+            # Multimodal extraction
             lxml
             beautifulsoup4
             pillow
+
+            # ML & Science
             scikit-learn
             numpy
             pandas
+            scipy
           ];
 
           meta = with pkgs.lib; {
