@@ -1,0 +1,27 @@
+# Spider-Nix Network Proxy Configuration
+# Copy to spider-network-proxy.toml or /etc/spider-network-proxy.toml
+
+[proxy]
+# Proxy server bind address
+listen = "127.0.0.1"
+
+# Proxy server port
+port = 8080
+
+[tls]
+# Enable TLS fingerprint rotation (recommended for anti-detection)
+fingerprint_rotation = true
+
+# Browser pool for TLS fingerprints
+# Available: chrome, firefox, safari, edge, ios
+browser_pool = ["chrome", "firefox", "safari", "edge"]
+
+# Default fingerprint when rotation is disabled
+default_fingerprint = "chrome"
+
+[http2]
+# Randomize HTTP/2 SETTINGS frame (Phase 3 feature)
+randomize_settings = true
+
+# Randomize HTTP/2 PRIORITY frames (Phase 3 feature)
+randomize_priority = true
