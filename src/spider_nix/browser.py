@@ -101,6 +101,7 @@ class BrowserCrawler:
                 user_agent=self.stealth.get_user_agent(),
                 locale=fingerprint["language"],
                 timezone_id=fingerprint["timezone"],
+                ignore_https_errors=True,  # Allow MITM proxy
             )
             
             # Inject stealth script

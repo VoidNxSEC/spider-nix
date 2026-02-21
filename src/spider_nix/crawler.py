@@ -223,10 +223,16 @@ class SpiderNix:
         start = time.monotonic()
 
         # Configure proxy if available
+        # Configure proxy if available
         if proxy_url:
+            # Disable SSL verification for internal proxy (MITM)
+            verify = True
+            if "127.0.0.1" in proxy_url or "localhost" in proxy_url:
+                verify = False
+
             client._mounts = {
-                "http://": httpx.HTTPTransport(proxy=proxy_url),
-                "https://": httpx.HTTPTransport(proxy=proxy_url),
+                "http://": httpx.HTTPTransport(proxy=proxy_url, verify=verify),
+                "https://": httpx.HTTPTransport(proxy=proxy_url, verify=verify),
             }
 
         response = await client.get(url, headers=headers)
