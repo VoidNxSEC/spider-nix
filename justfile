@@ -6,8 +6,11 @@ default:
     @just --list
 
 # Install spider-nix in editable mode
+# Install (No-op in Nix)
 install:
-    uv pip install -e .
+    @echo "Dependencies are managed by Nix. No installation needed."
+    @echo "If you need to install the package in editable mode for tools not using PYTHONPATH:"
+    @echo "  uv pip install -e . --no-deps"
 
 # Run all tests
 test:
@@ -29,7 +32,7 @@ hooks-install:
 hooks-run:
     pre-commit run --all-files
 
-# Security scan with bandit
+# Run security scans
 security:
     bandit -r src/spider_nix -ll
 
@@ -80,11 +83,12 @@ ml-init:
 
 # Start Go network proxy (separate terminal)
 proxy-start:
-    cd ../spider-nix-network && ./spider-network-proxy -config configs/test.toml
+    cd network && go run ./cmd/spider-network-proxy -config configs/test.toml
 
 # Build Go network proxy
 proxy-build:
-    cd ../spider-nix-network && make build
+    cd network && go build -o ../dist/spider-network-proxy ./cmd/spider-network-proxy
+
 
 # Run browser-based crawl
 browser URL:
