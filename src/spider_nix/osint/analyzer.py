@@ -316,8 +316,6 @@ class TechnologyDetector:
         # Enhance each detection with version info
         for tech in basic_detected:
             version = None
-            cdn_url = None
-            npm_package = None
 
             # Try to extract version
             if tech.name in self.VERSION_PATTERNS:

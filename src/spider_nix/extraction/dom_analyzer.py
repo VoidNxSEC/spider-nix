@@ -5,11 +5,9 @@ Extracts all interactive elements from HTML with their bounding boxes,
 generating XPath and CSS selectors for reliable element targeting.
 """
 
-import asyncio
 from typing import List, Optional
 
-from lxml import html, etree
-from bs4 import BeautifulSoup
+from lxml import html
 
 from .models import DOMElement, BoundingBox
 
@@ -18,7 +16,7 @@ class DOMAnalyzer:
     """
     Parallel HTML/DOM analysis with position calculation.
     
-    Uses both lxml (fast) and BeautifulSoup (robust) for comprehensive parsing.
+    Uses lxml for fast, structured DOM parsing.
     Calculates element positions via Playwright's getBoundingClientRect().
     """
 
@@ -44,9 +42,8 @@ class DOMAnalyzer:
         Returns:
             List of DOM elements with bounding boxes
         """
-        # Parse HTML with lxml (fast) + BeautifulSoup (robust)
+        # Parse HTML with lxml for selector extraction.
         tree = html.fromstring(html_content)
-        soup = BeautifulSoup(html_content, 'lxml')
 
         elements = []
 
@@ -96,7 +93,7 @@ class DOMAnalyzer:
                     )
                     elements.append(element)
 
-                except Exception as e:
+                except Exception:
                     # Skip problematic elements
                     continue
 
@@ -186,7 +183,7 @@ class DOMAnalyzer:
                 height=box['height'] / viewport_height
             )
 
-        except Exception as e:
+        except Exception:
             # Element not visible, removed, or inaccessible
             return None
 
@@ -266,5 +263,5 @@ class DOMAnalyzer:
 
             return elements
 
-        except Exception as e:
+        except Exception:
             return []

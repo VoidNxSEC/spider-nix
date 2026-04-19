@@ -204,7 +204,7 @@ class BrowserCrawler:
     
     async def _extract_links(self, page, base_url: str) -> list[str]:
         """Extract links using browser."""
-        from urllib.parse import urljoin, urlparse
+        from urllib.parse import urlparse
         
         links = await page.eval_on_selector_all(
             "a[href]",

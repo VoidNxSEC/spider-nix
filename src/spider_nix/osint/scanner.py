@@ -7,7 +7,6 @@ Provides async TCP/UDP port scanning, banner grabbing, and service fingerprintin
 import asyncio
 import logging
 import socket
-import struct
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal

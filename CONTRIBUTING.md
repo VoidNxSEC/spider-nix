@@ -27,18 +27,17 @@ Thank you for your interest in contributing to Spider-Nix! This document provide
    - Installs Python 3.13 with all dependencies
    - Sets up Playwright browsers
    - Configures development tools (pytest, ruff, mypy, bandit)
-   - Adds just, uv, and pre-commit hooks
+   - Adds `spider`, uv, pre-commit, and compatibility tooling
 
-3. **Install Package and Hooks**
+3. **Install Hooks**
    ```bash
-   just install
-   just hooks-install
+   spider hooks-install
    ```
 
 4. **Verify Setup**
    ```bash
-   just test
-   just check
+   spider test
+   spider check
    ```
 
 ## Development Workflow
@@ -64,7 +63,7 @@ Thank you for your interest in contributing to Spider-Nix! This document provide
 
 3. **Run Quality Checks**
    ```bash
-   just ci-local  # Runs full CI pipeline locally
+   spider ci-local  # Runs full CI pipeline locally
    ```
 
 4. **Commit Changes**
@@ -177,10 +176,10 @@ async def test_crawler_basic():
 
 ```bash
 # All tests
-just test
+spider test
 
 # With coverage
-just test-cov
+spider test-cov
 
 # Specific file
 pytest tests/test_crawler.py
@@ -214,7 +213,7 @@ pytest-watch
 
 3. **Dependency Management**
    - Review dependencies before adding
-   - Run `just security` to scan for vulnerabilities
+   - Run `spider security` to scan for vulnerabilities
    - Update dependencies regularly
 
 ### Reporting Security Issues
@@ -229,9 +228,9 @@ Before submitting, ensure:
 
 - [ ] Code follows style guidelines (ruff passes)
 - [ ] Tests added for new functionality
-- [ ] All tests pass (`just test`)
-- [ ] Type checking passes (`just typecheck`)
-- [ ] Security scans pass (`just security`)
+- [ ] All tests pass (`spider test`)
+- [ ] Type checking passes (`spider typecheck`)
+- [ ] Security scans pass (`spider security`)
 - [ ] Documentation updated if needed
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
 
@@ -261,23 +260,20 @@ Before submitting, ensure:
 
 ```bash
 # Setup
-just install          # Install package in editable mode
-just hooks-install    # Install pre-commit hooks
+spider hooks-install  # Install pre-commit hooks
 
 # Development
-just test             # Run tests
-just test-cov         # Tests with coverage
-just test-cov-view    # Open coverage report in browser
-just check            # Run linters
-just typecheck        # Run type checking
-just security         # Run security scans
-just ci-local         # Full CI simulation
+spider test           # Run tests
+spider test-cov       # Tests with coverage
+spider check          # Run linters
+spider typecheck      # Run type checking
+spider security       # Run security scans
+spider ci-local       # Full CI simulation
 
 # Utilities
-just run <url>        # Quick crawler test
-just proxies          # Fetch public proxies
-just clean            # Clean artifacts
-just clean-all        # Clean including coverage
+spider crawl <url>    # Quick crawler test
+spider proxy-fetch    # Fetch public proxies
+spider clean          # Clean artifacts
 ```
 
 ## Questions?

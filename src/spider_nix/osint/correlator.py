@@ -542,8 +542,8 @@ class CorrelationEngine:
 
             # Extract organization/product entities for competitive intelligence
             if item.schema_type == "Organization" and "name" in item.properties:
-                org_name = item.properties["name"]
                 # Could link to external data sources here
+                pass
 
     def process_forms(self, url: str, forms: list) -> None:
         """

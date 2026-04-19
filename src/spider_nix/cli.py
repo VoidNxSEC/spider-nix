@@ -1,6 +1,9 @@
 """CLI interface for SpiderNix."""
 
 import asyncio
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -29,14 +32,32 @@ from .osint import (
     WellKnownScanner,
     WebArchiveClient,
 )
-from .intel.jobs import CareerPageFinder, JobAnalyzer, JobOpportunity
+from .intel.jobs import CareerPageFinder, JobAnalyzer
 
 app = typer.Typer(
-    name="spider-nix",
+    name="spider",
     help="🕷️ Enterprise web crawler for public data collection",
     add_completion=False,
 )
 console = Console()
+
+
+def _find_repo_root() -> Path:
+    current = Path.cwd().resolve()
+    for candidate in [current, *current.parents]:
+        if (candidate / "pyproject.toml").exists() and (candidate / "flake.nix").exists():
+            return candidate
+    console.print("[red]Could not locate repository root from the current directory.[/]")
+    raise typer.Exit(1)
+
+
+def _run_command(command: list[str], cwd: Optional[Path] = None) -> None:
+    """Run a repository workflow command and propagate its exit status."""
+    repo_root = _find_repo_root()
+    resolved_cwd = (repo_root / cwd) if cwd else repo_root
+    result = subprocess.run(command, cwd=str(resolved_cwd), check=False)
+    if result.returncode != 0:
+        raise typer.Exit(result.returncode)
 
 
 @app.command()
@@ -182,6 +203,138 @@ def proxy_stats(
 def version():
     """Show version."""
     console.print(f"[bold]SpiderNix v{__version__}[/]")
+
+
+@app.command()
+def test():
+    """Run the test suite."""
+    _run_command([sys.executable, "-m", "pytest", "tests/", "-v"])
+
+
+@app.command("test-cov")
+def test_cov():
+    """Run tests with coverage reporting."""
+    _run_command(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/",
+            "--cov=src/spider_nix",
+            "--cov-report=html",
+            "--cov-report=term",
+        ]
+    )
+
+
+@app.command()
+def lint():
+    """Run Ruff lint checks."""
+    _run_command([sys.executable, "-m", "ruff", "check", "src/spider_nix"])
+
+
+@app.command()
+def check():
+    """Run the standard lint check."""
+    lint()
+
+
+@app.command()
+def fmt():
+    """Format project code with Ruff."""
+    _run_command([sys.executable, "-m", "ruff", "format", "src/spider_nix", "tests"])
+
+
+@app.command()
+def typecheck():
+    """Run mypy type checking."""
+    _run_command([sys.executable, "-m", "mypy", "src/spider_nix", "--ignore-missing-imports"])
+
+
+@app.command()
+def security():
+    """Run security scans."""
+    _run_command([sys.executable, "-m", "bandit", "-r", "src/spider_nix", "-ll"])
+
+
+@app.command("hooks-install")
+def hooks_install():
+    """Install pre-commit hooks."""
+    _run_command(["pre-commit", "install"])
+
+
+@app.command("hooks-run")
+def hooks_run():
+    """Run pre-commit on all files."""
+    _run_command(["pre-commit", "run", "--all-files"])
+
+
+@app.command()
+def clean():
+    """Clean local build and test artifacts."""
+    repo_root = _find_repo_root()
+    directories = [
+        "build",
+        "dist",
+        ".pytest_cache",
+        ".ruff_cache",
+        "htmlcov",
+    ]
+    file_patterns = ["*.egg-info", "*.pyc"]
+
+    for relative_path in directories:
+        shutil.rmtree(repo_root / relative_path, ignore_errors=True)
+
+    for pattern in file_patterns:
+        for path in repo_root.glob(pattern):
+            if path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+            else:
+                path.unlink(missing_ok=True)
+
+    for path in repo_root.rglob("__pycache__"):
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+
+    console.print("[green]✓ Cleaned build and test artifacts[/]")
+
+
+@app.command("ci-local")
+def ci_local():
+    """Run the local CI command set."""
+    lint()
+    typecheck()
+    security()
+    test()
+
+
+@app.command("proxy-start")
+def proxy_start():
+    """Start the Go proxy server."""
+    _run_command(
+        ["go", "run", "./cmd/spider-network-proxy", "-config", "configs/test.toml"],
+        cwd=Path("network"),
+    )
+
+
+@app.command("proxy-build")
+def proxy_build():
+    """Build the Go proxy binary."""
+    _run_command(
+        ["go", "build", "-o", "../dist/spider-network-proxy", "./cmd/spider-network-proxy"],
+        cwd=Path("network"),
+    )
+
+
+@app.command()
+def benchmark(
+    url: str = typer.Argument(..., help="URL to benchmark"),
+):
+    """Benchmark crawl performance."""
+    console.print(f"[cyan]Running performance benchmark on {url}[/]")
+    _run_command(
+        ["hyperfine", "--warmup", "3", f"{sys.executable} -m spider_nix.cli crawl {url}"]
+    )
 
 
 # OSINT Reconnaissance commands
@@ -444,7 +597,7 @@ def recon_portscan(
             result = await scanner.scan_ports(target, port_list, protocol)
 
         if not result.results:
-            console.print(f"[yellow]No results from scan[/]")
+            console.print("[yellow]No results from scan[/]")
             return
 
         # Display open ports
@@ -756,12 +909,12 @@ def web_sitemap(
         console.print(f"[cyan]Nested Sitemaps: {len(analysis.nested_sitemaps)}[/]")
 
         if analysis.url_patterns:
-            console.print(f"\n[bold]URL Patterns:[/]")
+            console.print("\n[bold]URL Patterns:[/]")
             for pattern, count in sorted(analysis.url_patterns.items(), key=lambda x: x[1], reverse=True)[:10]:
                 console.print(f"  {pattern}: {count}")
 
         # Sample URLs
-        console.print(f"\n[bold]Sample URLs (first 10):[/]")
+        console.print("\n[bold]Sample URLs (first 10):[/]")
         for url_entry in analysis.urls[:10]:
             console.print(f"  • {url_entry.loc}")
 
@@ -1241,7 +1394,7 @@ def job_hunt(
 
         # 3. Report
         if not opportunities:
-            console.print(f"\n[yellow]No specific job opportunities identified.[/]")
+            console.print("\n[yellow]No specific job opportunities identified.[/]")
             return
 
         # Sort by score
@@ -1311,7 +1464,7 @@ def wizard():
 @app.command()
 def presets():
     """📋 List available configuration presets."""
-    console.print(f"\n[bold]🕷️ SpiderNix Configuration Presets[/]\n")
+    console.print("\n[bold]🕷️ SpiderNix Configuration Presets[/]\n")
 
     presets_info = list_presets()
 
@@ -1323,7 +1476,7 @@ def presets():
         table.add_row(name, description)
 
     console.print(table)
-    console.print("\n[dim]Usage: spider-nix advanced-crawl --preset <name>[/]")
+    console.print("\n[dim]Usage: spider advanced-crawl --preset <name>[/]")
 
 
 @app.command()
@@ -1361,7 +1514,7 @@ def advanced_crawl(
         console.print(f"[cyan]Output: {output} ({format})[/]")
 
     console.print(f"[cyan]Target: {url}[/]")
-    console.print(f"[cyan]Features: Rate Limiting ✓ | Circuit Breaker ✓ | Deduplication ✓ | Monitoring ✓[/]\n")
+    console.print("[cyan]Features: Rate Limiting ✓ | Circuit Breaker ✓ | Deduplication ✓ | Monitoring ✓[/]\n")
 
     # Run crawler with advanced features
     async def run():
@@ -1431,7 +1584,7 @@ def advanced_crawl(
 
     # Generate HTML report
     if report:
-        console.print(f"\n[cyan]Generating HTML report...[/]")
+        console.print("\n[cyan]Generating HTML report...[/]")
         stats = crawler_monitor.stats if crawler_monitor else None
         report_file = generate_report(
             results=results,
@@ -1452,7 +1605,7 @@ def generate_html_report(
     import json
     from .storage import CrawlResult
 
-    console.print(f"\n[bold]📊 Generating HTML Report[/]\n")
+    console.print("\n[bold]📊 Generating HTML Report[/]\n")
 
     # Load results
     with open(results_file) as f:
@@ -1494,14 +1647,14 @@ def multimodal_extract(
     high-confidence extractions resilient to CSS class changes.
     
     Example:
-        spider-nix recon multimodal https://example.com
-        spider-nix recon multimodal https://example.com --model llava-v1.5-7b-q4
-        spider-nix recon multimodal https://example.com --iou 0.7 --proxy
+        spider recon multimodal https://example.com
+        spider recon multimodal https://example.com --model llava-v1.5-7b-q4
+        spider recon multimodal https://example.com --iou 0.7 --proxy
     """
     import json
     from .extraction import MultimodalExtractor
 
-    console.print(f"\n[bold]🤖 Multimodal Extraction[/]\n")
+    console.print("\n[bold]🤖 Multimodal Extraction[/]\n")
     console.print(f"Target: [cyan]{url}[/]")
     console.print(f"Vision Model: [yellow]{vision_model}[/]")
     console.print(f"IoU Threshold: [yellow]{iou_threshold}[/]")
@@ -1527,7 +1680,7 @@ def multimodal_extract(
                 json.dump(result.to_dict(), f, indent=2)
 
             # Print summary
-            console.print(f"\n[bold green]✓ Extraction Complete[/]\n")
+            console.print("\n[bold green]✓ Extraction Complete[/]\n")
 
             # Results table
             table = Table(title="Extraction Results")
@@ -1548,7 +1701,7 @@ def multimodal_extract(
             console.print(table)
 
             # Elements breakdown
-            console.print(f"\n[bold]Detected Elements:[/]")
+            console.print("\n[bold]Detected Elements:[/]")
             element_types = {}
             for elem in result.fused_elements:
                 etype = elem.vision.element_type

@@ -2,15 +2,13 @@
 Job Intelligence module for finding and analyzing career opportunities.
 """
 
-import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
 
-from spider_nix.crawler import SpiderNix, CrawlResult
-from spider_nix.osint.analyzer import ContentAnalyzer, AnalysisResult
-from spider_nix.osint.reconnaissance import SubdomainEnumerator, SubdomainResult
+from spider_nix.crawler import CrawlResult
+from spider_nix.osint.analyzer import ContentAnalyzer
+from spider_nix.osint.reconnaissance import SubdomainEnumerator
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +69,7 @@ class CareerPageFinder:
         # 2. Check common paths on main domain
         logger.info(f"Checking common career paths for {domain}...")
         base_urls = [f"https://{domain}", f"https://www.{domain}"]
-        spider = SpiderNix() # Use spider for efficient checking
-        
+
         for base in base_urls:
             for path in self.CAREER_PATHS:
                 url = f"{base}{path}"

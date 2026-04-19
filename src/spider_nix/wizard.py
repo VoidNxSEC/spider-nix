@@ -9,8 +9,6 @@ from rich.text import Text
 from .config import (
     PRESETS,
     CrawlerConfig,
-    ProxyConfig,
-    StealthConfig,
     get_preset,
     list_presets,
 )

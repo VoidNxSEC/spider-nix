@@ -14,7 +14,7 @@ Strategies:
 """
 
 import random
-from typing import Dict, List
+from typing import Dict
 
 import aiosqlite
 
@@ -270,7 +270,7 @@ class StrategySelector:
                         # Unknown strategy in DB (skip)
                         continue
 
-        except Exception as e:
+        except Exception:
             # DB doesn't exist yet or error reading
             pass
 

@@ -41,6 +41,7 @@ dev = [
 ]
 
 [project.scripts]
+spider = "spider_nix.cli:app"
 spider-nix = "spider_nix.cli:app"
 
 [build-system]
