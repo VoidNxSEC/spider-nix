@@ -95,7 +95,7 @@
           buildInputs = with pkgs; [
             pythonEnv
             playwright-driver.browsers
-            nodePackages.npm
+            nodejs_24
             just
             playwright
             hyperfine
