@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import AsyncGenerator, Callable
+from typing import Callable
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -13,12 +13,11 @@ from .proxy import ProxyRotator
 from .rate_limiter import (
     AdaptiveRateLimiter,
     CircuitBreaker,
-    CircuitBreakerConfig,
     CircuitBreakerError,
     RequestDeduplicator,
 )
 from .stealth import StealthEngine
-from .storage import CrawlResult, StorageBackend, get_storage
+from .storage import CrawlResult, StorageBackend
 
 console = Console()
 
@@ -160,8 +159,6 @@ class SpiderNix:
         if self.rate_limiter:
             await self.rate_limiter.acquire()
 
-        last_error = None
-
         for attempt in range(self.config.max_retries):
             proxy_url = self.proxy.get_next()
             headers = self.stealth.get_headers()
@@ -179,7 +176,7 @@ class SpiderNix:
                             attempt,
                         )
                         return result
-                    except CircuitBreakerError as e:
+                    except CircuitBreakerError:
                         console.print(f"[red]⚠[/] {url} circuit breaker open, skipping")
                         return None
                 else:
@@ -193,7 +190,6 @@ class SpiderNix:
                     return result
 
             except httpx.RequestError as e:
-                last_error = e
                 if proxy_url:
                     self.proxy.report_failure(proxy_url)
 

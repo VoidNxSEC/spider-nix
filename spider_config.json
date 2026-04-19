@@ -1,0 +1,48 @@
+{
+  "max_requests_per_crawl": 100,
+  "max_concurrent_requests": 10,
+  "request_timeout_ms": 30000,
+  "max_retries": 10,
+  "retry_on_status_codes": [
+    429,
+    500,
+    502,
+    503,
+    504
+  ],
+  "use_browser": true,
+  "headless": true,
+  "browser_type": "chromium",
+  "stealth": {
+    "randomize_user_agent": true,
+    "randomize_fingerprint": true,
+    "human_like_delays": true,
+    "min_delay_ms": 100,
+    "max_delay_ms": 500
+  },
+  "proxy": {
+    "urls": [],
+    "rotate_on_block": true,
+    "rotation_strategy": "random"
+  },
+  "network": {
+    "use_network_proxy": false,
+    "network_proxy_url": "http://127.0.0.1:8080",
+    "tls_fingerprint_rotation": true
+  },
+  "vision": {
+    "enabled": false,
+    "ml_offload_api_url": "http://localhost:9000",
+    "vision_model": "llava-v1.5-7b-q4",
+    "iou_threshold": 0.5,
+    "fusion_confidence_threshold": 0.7
+  },
+  "ml": {
+    "enabled": false,
+    "feedback_db_path": "feedback.db",
+    "epsilon": 0.1,
+    "auto_adapt_strategies": true
+  },
+  "output_format": "json",
+  "output_path": "~/"
+}

@@ -12,8 +12,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import httpx
 

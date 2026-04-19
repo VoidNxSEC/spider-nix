@@ -290,7 +290,7 @@ class SessionManager:
 
                 # Auto-refresh if enabled
                 if self.auto_refresh and "login_url" in session.metadata:
-                    console.print(f"[cyan]↻[/] Attempting to refresh session...")
+                    console.print("[cyan]↻[/] Attempting to refresh session...")
                     # TODO: Implement refresh logic
                     return None
 

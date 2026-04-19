@@ -4,9 +4,8 @@ import aiosqlite
 import json
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
-from .models import CrawlAttempt, FailureClass, Strategy, StrategyEffectiveness
+from .models import CrawlAttempt, Strategy, StrategyEffectiveness
 
 
 class FeedbackLogger:

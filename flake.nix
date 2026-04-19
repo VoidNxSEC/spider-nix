@@ -64,6 +64,28 @@
         ];
 
         pythonEnv = pkgs.python313.withPackages (ps: sharedDeps);
+        spiderCli = pkgs.writeShellApplication {
+          name = "spider";
+          runtimeInputs = [ pythonEnv ];
+          text = ''
+            repo_root="$PWD"
+            while [ "$repo_root" != "/" ]; do
+              if [ -f "$repo_root/pyproject.toml" ] && [ -f "$repo_root/flake.nix" ]; then
+                break
+              fi
+              repo_root="$(dirname "$repo_root")"
+            done
+
+            if [ ! -f "$repo_root/pyproject.toml" ] || [ ! -f "$repo_root/flake.nix" ]; then
+              echo "spider: could not locate repository root from $PWD" >&2
+              exit 1
+            fi
+
+            export PYTHONPATH="$repo_root/src:$PYTHONPATH"
+            cd "$repo_root"
+            exec python -c 'from spider_nix.cli import app; app(prog_name="spider")' "$@"
+          '';
+        };
 
       in
       {
@@ -76,6 +98,8 @@
             nodePackages.npm
             just
             playwright
+            hyperfine
+            spiderCli
 
             uv
             pre-commit
@@ -91,28 +115,84 @@
             export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
             export PYTHONPATH="$PWD/src:$PYTHONPATH"
 
+            sp() {
+              spider "$@"
+            }
+
+            spider-help() {
+              cat <<'EOF'
+SpiderNix Dev Commands
+  spider crawl <url>       Crawl a target
+  spider recon <module>    Run OSINT and web recon commands
+  spider test              Run the test suite
+  spider test-cov          Run tests with coverage output
+  spider check             Run Ruff lint checks
+  spider fmt               Format code with Ruff
+  spider typecheck         Run mypy
+  spider security          Run Bandit
+  spider ci-local          Run the local validation chain
+  spider proxy-start       Start the Go proxy
+  spider proxy-build       Build the Go proxy
+  spider clean             Remove local build and test artifacts
+
+Shortcuts
+  sp <args>                Shortcut for spider <args>
+  spider-help              Print this reference
+EOF
+            }
+
+            case "$-" in
+              *i*)
+                if [ -n "$ZSH_VERSION" ]; then
+                  eval "$(env _SPIDER_COMPLETE=zsh_source spider)"
+                elif [ -n "$BASH_VERSION" ]; then
+                  eval "$(env _SPIDER_COMPLETE=bash_source spider)"
+                fi
+                ;;
+            esac
+
             # Warn if .venv exists, as we are using Nix
             if [ -d ".venv" ]; then
                 echo "⚠️  .venv detected but ignored in favor of Nix environment."
                 echo "   Run 'rm -rf .venv' to avoid confusion."
             fi
 
-            echo "🕷️  SpiderNix Development Environment"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "Python: $(python --version)"
-            echo "Just:   $(just --version)"
-            echo "uv:     $(uv --version)"
-            echo ""
-            echo "Commands:"
-            echo "  just test               Run tests"
-            echo "  just test-cov           Run tests with coverage"
-            echo "  just security           Run security scans"
-            echo "  just typecheck          Run type checking"
-            echo "  just run <url>          Run crawler"
-            echo ""
-            echo "Network Proxy:"
-            echo "  just proxy-start        Start proxy server"
-            echo "  just proxy-build        Build proxy binary"
+            cat <<EOF
+
+   _____       _     _           _   __ _
+  / ____|     (_)   | |         | | / /(_)
+ | (___  _ __  _  __| | ___ _ __| |/ /  ___  __
+  \___ \| '_ \| |/ _` |/ _ \ '__|    \ | \ \/ /
+  ____) | |_) | | (_| |  __/ |  | |\  \| |>  <
+ |_____/| .__/|_|\__,_|\___|_|  |_| \_\_/_/\_\
+        | |
+        |_|   Dev Shell
+
+Python  : $(python --version)
+Just    : $(just --version)
+uv      : $(uv --version)
+Helper  : sp -> spider
+
+Core Commands
+  spider crawl <url>       Crawl a target
+  spider recon --help      Explore recon modules
+  spider test              Run tests
+  spider test-cov          Run tests with coverage
+  spider check             Run lint checks
+  spider fmt               Format code
+  spider typecheck         Run mypy
+  spider security          Run Bandit
+  spider ci-local          Run the local validation chain
+
+Proxy
+  spider proxy-start       Start proxy server
+  spider proxy-build       Build proxy binary
+
+Tips
+  spider --help            Full command reference
+  spider-help              Compact dev cheat sheet
+  TAB on 'spider'          Completion with command descriptions
+EOF
           '';
         };
 

@@ -6,7 +6,6 @@ and element detection via the ml-offload-api REST endpoint.
 """
 
 import base64
-import json
 import re
 from pathlib import Path
 from typing import List
@@ -202,7 +201,7 @@ class VisionClient:
                 )
                 detections.append(detection)
 
-            except (ValueError, IndexError) as e:
+            except (ValueError, IndexError):
                 # Skip malformed lines
                 continue
 

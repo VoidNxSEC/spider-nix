@@ -1,9 +1,7 @@
 """Vision AI extractor using ml-offload-api for local inference."""
 
 import asyncio
-import base64
 from io import BytesIO
-from typing import Any
 
 import httpx
 from PIL import Image
@@ -216,7 +214,7 @@ class VisionExtractor:
 
             return detections
 
-        except httpx.HTTPStatusError as e:
+        except httpx.HTTPStatusError:
             # OCR endpoint may not exist - return empty list
             return []
 

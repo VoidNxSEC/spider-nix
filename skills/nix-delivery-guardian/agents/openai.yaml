@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nix Delivery Guardian"
+  short_description: "Govern development quality in Nix repos"
+  default_prompt: "Use $nix-delivery-guardian to assess this Nix repo for bugs, inconsistencies, delivery gaps, and production readiness before or during implementation."

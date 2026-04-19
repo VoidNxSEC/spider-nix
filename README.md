@@ -106,33 +106,32 @@ cd spider-nix
 # Enter Nix development shell (installs all dependencies)
 nix develop
 
-# Install package and pre-commit hooks
-just install
-just hooks-install
+# Install pre-commit hooks
+spider hooks-install
 
 # Run tests to verify setup
-just test
+spider test
 ```
 
 ### Usage Examples
 
 ```bash
 # Basic crawling
-spider-nix crawl https://example.com --pages 10
+spider crawl https://example.com --pages 10
 
 # Browser mode for JavaScript sites
-spider-nix crawl https://spa-site.com --browser --pages 5
+spider crawl https://spa-site.com --browser --pages 5
 
 # OSINT reconnaissance
-spider-nix recon dns example.com
-spider-nix recon subdomains example.com -o results.json
-spider-nix recon portscan 192.168.1.1 -p 1-1000
+spider recon dns example.com
+spider recon subdomains example.com -o results.json
+spider recon portscan 192.168.1.1 -p 1-1000
 
 # Job hunting intelligence
-spider-nix job-hunt example.com --pages 20 --output jobs.json
+spider job-hunt example.com --pages 20 --output jobs.json
 
 # Aggressive mode with proxy rotation
-spider-nix crawl https://target.com --aggressive --proxy-file proxies.txt
+spider crawl https://target.com --aggressive --proxy-file proxies.txt
 ```
 
 ## Development
@@ -143,35 +142,32 @@ spider-nix crawl https://target.com --aggressive --proxy-file proxies.txt
 # Enter Nix devShell
 nix develop
 
-# Install package in editable mode
-just install
-
 # Install pre-commit hooks
-just hooks-install
+spider hooks-install
 
 # Run full CI checks locally
-just ci-local
+spider ci-local
 ```
 
 ### Development Commands
 
 ```bash
-just test              # Run tests
-just test-cov          # Tests with coverage report
-just check             # Run linters
-just typecheck         # Run mypy type checking
-just security          # Run security scans
-just ci-local          # Simulate full CI pipeline
+spider test            # Run tests
+spider test-cov        # Tests with coverage report
+spider check           # Run linters
+spider typecheck       # Run mypy type checking
+spider security        # Run security scans
+spider ci-local        # Simulate full CI pipeline
 ```
 
 ### Testing
 
 ```bash
 # Run all tests
-pytest
+spider test
 
 # Run with coverage
-pytest --cov=spider_nix --cov-report=html
+spider test-cov
 
 # Run specific test file
 pytest tests/test_crawler.py

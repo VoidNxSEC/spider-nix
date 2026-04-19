@@ -8,7 +8,7 @@ to CSS class changes.
 This is the key innovation that enables CSS-independent web scraping.
 """
 
-from typing import List, Tuple, Set
+from typing import List, Set
 
 from .models import (
     VisionDetection,
