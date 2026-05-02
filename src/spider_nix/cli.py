@@ -1,6 +1,7 @@
 """CLI interface for SpiderNix."""
 
 import asyncio
+import re
 import shutil
 import subprocess
 import sys
@@ -12,27 +13,36 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
-from .config import CrawlerConfig, AGGRESSIVE_CONFIG, get_preset, list_presets
-from .crawler import SpiderNix
 from .browser import BrowserCrawler
+from .config import AGGRESSIVE_CONFIG, CrawlerConfig, get_preset, list_presets
+from .crawler import SpiderNix
+from .intel.approval_gate import request_approval
+from .intel.ats.detector import ATSPlatform, detect_from_url
+from .intel.jobs import CareerPageFinder, JobAnalyzer
+from .intel.llm_mapper import generate_mapping
+from .intel.personal_scorer import score_opportunity
+from .intel.profile import load_profile
+from .intel.tracker import Application, ApplicationTracker
 from .monitor import CrawlMonitor
+from .osint import (
+    DirectoryBruteforcer,
+    DNSResolver,
+    FormAnalyzer,
+    GraphQLDiscovery,
+    PortScanner,
+    RobotsTxtAnalyzer,
+    SitemapParser,
+    StructuredDataExtractor,
+    SubdomainEnumerator,
+    TechnologyDetector,
+    WebArchiveClient,
+    WellKnownScanner,
+    WHOISLookup,
+)
 from .proxy import ProxyRotator, fetch_public_proxies
 from .report import generate_report
 from .storage import get_storage
 from .wizard import run_wizard
-from .osint import DNSResolver, WHOISLookup, SubdomainEnumerator, PortScanner
-from .osint import (
-    GraphQLDiscovery,
-    StructuredDataExtractor,
-    TechnologyDetector,
-    SitemapParser,
-    RobotsTxtAnalyzer,
-    FormAnalyzer,
-    DirectoryBruteforcer,
-    WellKnownScanner,
-    WebArchiveClient,
-)
-from .intel.jobs import CareerPageFinder, JobAnalyzer
 
 app = typer.Typer(
     name="spider",
@@ -71,58 +81,62 @@ def crawl(
     follow: bool = typer.Option(False, "--follow", "-F", help="Follow links on pages"),
     proxy_file: Optional[Path] = typer.Option(None, "--proxy-file", help="File with proxy list"),
     concurrent: int = typer.Option(10, "--concurrent", "-c", help="Concurrent requests"),
-    aggressive: bool = typer.Option(False, "--aggressive", "-a", help="Aggressive mode (fast, no delays)"),
+    aggressive: bool = typer.Option(
+        False, "--aggressive", "-a", help="Aggressive mode (fast, no delays)"
+    ),
     timeout: int = typer.Option(30, "--timeout", "-t", help="Request timeout in seconds"),
 ):
     """Crawl a URL and extract data."""
-    
+
     console.print(f"\n[bold]🕷️ SpiderNix v{__version__}[/]\n")
-    
+
     # Build config
     if aggressive:
         config = AGGRESSIVE_CONFIG.model_copy()
     else:
         config = CrawlerConfig()
-    
+
     config.max_requests_per_crawl = pages
     config.max_concurrent_requests = concurrent
     config.request_timeout_ms = timeout * 1000
     config.use_browser = browser
     config.headless = headless
-    
+
     # Load proxies if provided
     proxy_rotator = None
     if proxy_file:
         proxy_rotator = ProxyRotator.from_file(str(proxy_file))
         console.print(f"[cyan]Loaded {len(proxy_rotator.proxies)} proxies[/]")
-    
+
     # Setup storage
     storage = None
     if output:
         storage = get_storage(output, format)
         console.print(f"[cyan]Output: {output} ({format})[/]")
-    
+
     console.print(f"[cyan]Target: {url}[/]")
-    console.print(f"[cyan]Mode: {'Browser' if browser else 'HTTP'} | Pages: {pages} | Concurrent: {concurrent}[/]\n")
-    
+    console.print(
+        f"[cyan]Mode: {'Browser' if browser else 'HTTP'} | Pages: {pages} | Concurrent: {concurrent}[/]\n"
+    )
+
     # Run crawler
     async def run():
         if browser:
             crawler = BrowserCrawler(config=config, proxy_rotator=proxy_rotator)
         else:
             crawler = SpiderNix(config=config, proxy_rotator=proxy_rotator)
-        
+
         results = await crawler.crawl(
             url,
             max_pages=pages,
             follow_links=follow,
             storage=storage,
         )
-        
+
         return results
-    
+
     results = asyncio.run(run())
-    
+
     # Summary
     console.print(f"\n[bold green]✓ Crawled {len(results)} pages[/]")
     if output:
@@ -132,21 +146,21 @@ def crawl(
 @app.command()
 def proxy_fetch():
     """Fetch public proxies (unreliable, for testing only)."""
-    
+
     console.print("[yellow]Fetching public proxies...[/]")
-    
+
     async def run():
         return await fetch_public_proxies()
-    
+
     proxies = asyncio.run(run())
-    
+
     console.print(f"[green]Found {len(proxies)} proxies[/]\n")
-    
+
     # Save to file
     with open("proxies.txt", "w") as f:
         for proxy in proxies:
             f.write(proxy + "\n")
-    
+
     console.print("[green]Saved to: proxies.txt[/]")
 
 
@@ -156,16 +170,16 @@ def proxy_stats(
     test: bool = typer.Option(False, "--test", "-t", help="Test proxies"),
 ):
     """Show proxy statistics."""
-    
+
     rotator = ProxyRotator.from_file(str(proxy_file))
-    
+
     console.print(f"[bold]Proxies: {len(rotator.proxies)}[/]\n")
-    
+
     if test:
         console.print("[yellow]Testing proxies...[/]\n")
-        
+
         import httpx
-        
+
         async def test_proxy(proxy: str) -> tuple[str, bool, float]:
             try:
                 async with httpx.AsyncClient(
@@ -173,29 +187,30 @@ def proxy_stats(
                     timeout=10,
                 ) as client:
                     import time
+
                     start = time.monotonic()
                     resp = await client.get("https://httpbin.org/ip")
                     elapsed = (time.monotonic() - start) * 1000
                     return proxy, resp.status_code == 200, elapsed
             except Exception:
                 return proxy, False, 0
-        
+
         async def run():
             tasks = [test_proxy(p) for p in rotator.proxies[:20]]  # Test first 20
             return await asyncio.gather(*tasks)
-        
+
         results = asyncio.run(run())
-        
+
         table = Table(title="Proxy Test Results")
         table.add_column("Proxy", style="cyan")
         table.add_column("Status", style="green")
         table.add_column("Latency", style="yellow")
-        
+
         for proxy, ok, latency in results:
             status = "✓ OK" if ok else "✗ Failed"
             lat = f"{latency:.0f}ms" if ok else "-"
             table.add_row(proxy[:50], status, lat)
-        
+
         console.print(table)
 
 
@@ -332,9 +347,7 @@ def benchmark(
 ):
     """Benchmark crawl performance."""
     console.print(f"[cyan]Running performance benchmark on {url}[/]")
-    _run_command(
-        ["hyperfine", "--warmup", "3", f"{sys.executable} -m spider_nix.cli crawl {url}"]
-    )
+    _run_command(["hyperfine", "--warmup", "3", f"{sys.executable} -m spider_nix.cli crawl {url}"])
 
 
 # OSINT Reconnaissance commands
@@ -348,9 +361,15 @@ app.add_typer(recon_app, name="recon")
 @recon_app.command("dns")
 def recon_dns(
     domain: str = typer.Argument(..., help="Domain to query"),
-    record_type: Optional[str] = typer.Option(None, "--type", "-t", help="Specific record type (A, AAAA, MX, TXT, NS, CNAME, SOA)"),
-    nameservers: Optional[str] = typer.Option(None, "--nameservers", "-n", help="Custom DNS servers (comma-separated)"),
-    reverse: Optional[str] = typer.Option(None, "--reverse", "-r", help="Reverse DNS lookup for IP"),
+    record_type: Optional[str] = typer.Option(
+        None, "--type", "-t", help="Specific record type (A, AAAA, MX, TXT, NS, CNAME, SOA)"
+    ),
+    nameservers: Optional[str] = typer.Option(
+        None, "--nameservers", "-n", help="Custom DNS servers (comma-separated)"
+    ),
+    reverse: Optional[str] = typer.Option(
+        None, "--reverse", "-r", help="Reverse DNS lookup for IP"
+    ),
 ):
     """Perform DNS enumeration."""
 
@@ -481,7 +500,9 @@ def recon_whois(
 def recon_subdomains(
     domain: str = typer.Argument(..., help="Domain to enumerate"),
     use_crt: bool = typer.Option(True, "--crt/--no-crt", help="Use Certificate Transparency"),
-    use_bruteforce: bool = typer.Option(True, "--bruteforce/--no-bruteforce", help="Use DNS bruteforce"),
+    use_bruteforce: bool = typer.Option(
+        True, "--bruteforce/--no-bruteforce", help="Use DNS bruteforce"
+    ),
     wordlist: Optional[Path] = typer.Option(None, "--wordlist", "-w", help="Custom wordlist file"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
     max_concurrent: int = typer.Option(50, "--concurrent", "-c", help="Max concurrent DNS queries"),
@@ -504,7 +525,9 @@ def recon_subdomains(
             if use_crt:
                 console.print("[cyan]→ Querying Certificate Transparency logs...[/]")
             if use_bruteforce:
-                console.print(f"[cyan]→ Bruteforcing with {len(custom_wordlist or enumerator.DEFAULT_SUBDOMAINS)} subdomains...[/]")
+                console.print(
+                    f"[cyan]→ Bruteforcing with {len(custom_wordlist or enumerator.DEFAULT_SUBDOMAINS)} subdomains...[/]"
+                )
 
             results = await enumerator.enumerate(
                 domain,
@@ -534,6 +557,7 @@ def recon_subdomains(
             # Save to file if requested
             if output:
                 import json
+
                 data = [
                     {
                         "subdomain": r.subdomain,
@@ -557,7 +581,9 @@ def recon_subdomains(
 @recon_app.command("portscan")
 def recon_portscan(
     target: str = typer.Argument(..., help="Target host/IP"),
-    ports: Optional[str] = typer.Option(None, "--ports", "-p", help="Ports to scan (e.g., 80,443 or 1-1000)"),
+    ports: Optional[str] = typer.Option(
+        None, "--ports", "-p", help="Ports to scan (e.g., 80,443 or 1-1000)"
+    ),
     common: bool = typer.Option(False, "--common", "-c", help="Scan common ports only"),
     protocol: str = typer.Option("tcp", "--protocol", help="Protocol: tcp, udp, or both"),
     timeout: float = typer.Option(2.0, "--timeout", "-t", help="Connection timeout in seconds"),
@@ -592,6 +618,7 @@ def recon_portscan(
         else:
             # Default: scan top 100 ports
             from spider_nix.osint.scanner import COMMON_PORTS
+
             port_list = list(COMMON_PORTS.keys())
             console.print(f"[cyan]Scanning {len(port_list)} common ports ({protocol})...[/]")
             result = await scanner.scan_ports(target, port_list, protocol)
@@ -612,7 +639,11 @@ def recon_portscan(
             table.add_column("Banner", style="dim")
 
             for port_result in open_ports:
-                banner = (port_result.banner[:50] + "...") if port_result.banner and len(port_result.banner) > 50 else (port_result.banner or "-")
+                banner = (
+                    (port_result.banner[:50] + "...")
+                    if port_result.banner and len(port_result.banner) > 50
+                    else (port_result.banner or "-")
+                )
                 table.add_row(
                     str(port_result.port),
                     port_result.protocol,
@@ -635,6 +666,7 @@ def recon_portscan(
         # Save to file if requested
         if output:
             import json
+
             data = {
                 "host": result.host,
                 "scan_time_ms": result.scan_time_ms,
@@ -673,7 +705,9 @@ recon_app.add_typer(web_app, name="web")
 @web_app.command("graphql")
 def web_graphql(
     url: str = typer.Argument(..., help="URL to scan for GraphQL"),
-    introspect: bool = typer.Option(True, "--introspect/--no-introspect", help="Attempt introspection query"),
+    introspect: bool = typer.Option(
+        True, "--introspect/--no-introspect", help="Attempt introspection query"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Discover GraphQL endpoints and introspect schemas."""
@@ -708,6 +742,7 @@ def web_graphql(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "url": e.url,
@@ -736,7 +771,9 @@ def web_graphql(
 @web_app.command("structured")
 def web_structured(
     url: str = typer.Argument(..., help="URL to scan"),
-    format: str = typer.Option("all", "--format", "-f", help="Format: all, json-ld, opengraph, microdata, twitter"),
+    format: str = typer.Option(
+        "all", "--format", "-f", help="Format: all, json-ld, opengraph, microdata, twitter"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Extract structured data (JSON-LD, Open Graph, microdata)."""
@@ -785,6 +822,7 @@ def web_structured(
         # Save if requested
         if output:
             import json
+
             json_data = [
                 {
                     "url": item.url,
@@ -810,7 +848,9 @@ def web_structured(
 @web_app.command("tech")
 def web_tech(
     url: str = typer.Argument(..., help="URL to analyze"),
-    check_versions: bool = typer.Option(True, "--check-versions/--no-versions", help="Detect library versions"),
+    check_versions: bool = typer.Option(
+        True, "--check-versions/--no-versions", help="Detect library versions"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Enhanced technology detection with versions."""
@@ -856,6 +896,7 @@ def web_tech(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "name": t.name,
@@ -885,7 +926,9 @@ def web_tech(
 @web_app.command("sitemap")
 def web_sitemap(
     url: str = typer.Argument(..., help="Base URL (will append /sitemap.xml)"),
-    recursive: bool = typer.Option(True, "--recursive/--no-recursive", help="Parse nested sitemaps"),
+    recursive: bool = typer.Option(
+        True, "--recursive/--no-recursive", help="Parse nested sitemaps"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Parse sitemap.xml and extract URLs."""
@@ -895,6 +938,7 @@ def web_sitemap(
     async def run():
         # Construct sitemap URL
         from urllib.parse import urljoin
+
         sitemap_url = urljoin(url, "/sitemap.xml")
 
         parser = SitemapParser()
@@ -910,7 +954,9 @@ def web_sitemap(
 
         if analysis.url_patterns:
             console.print("\n[bold]URL Patterns:[/]")
-            for pattern, count in sorted(analysis.url_patterns.items(), key=lambda x: x[1], reverse=True)[:10]:
+            for pattern, count in sorted(
+                analysis.url_patterns.items(), key=lambda x: x[1], reverse=True
+            )[:10]:
                 console.print(f"  {pattern}: {count}")
 
         # Sample URLs
@@ -921,6 +967,7 @@ def web_sitemap(
         # Save if requested
         if output:
             import json
+
             data = {
                 "sitemap_url": analysis.sitemap_url,
                 "url_count": analysis.url_count,
@@ -951,7 +998,9 @@ def web_sitemap(
 @web_app.command("robots")
 def web_robots(
     domain: str = typer.Argument(..., help="Domain (will fetch /robots.txt)"),
-    show_interesting: bool = typer.Option(True, "--show-interesting/--all", help="Show only interesting paths"),
+    show_interesting: bool = typer.Option(
+        True, "--show-interesting/--all", help="Show only interesting paths"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Parse robots.txt and find interesting paths."""
@@ -996,6 +1045,7 @@ def web_robots(
         # Save if requested
         if output:
             import json
+
             data = {
                 "url": analysis.url,
                 "crawl_delay": analysis.crawl_delay,
@@ -1070,6 +1120,7 @@ def web_forms(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "url": f.url,
@@ -1107,8 +1158,12 @@ def web_forms(
 @web_app.command("dirs")
 def web_dirs(
     url: str = typer.Argument(..., help="Base URL to brute-force"),
-    wordlist: Optional[str] = typer.Option(None, "--wordlist", "-w", help="Wordlist name (common_dirs, api_paths) or path"),
-    extensions: Optional[str] = typer.Option(None, "--extensions", "-e", help="Extensions to try (comma-separated)"),
+    wordlist: Optional[str] = typer.Option(
+        None, "--wordlist", "-w", help="Wordlist name (common_dirs, api_paths) or path"
+    ),
+    extensions: Optional[str] = typer.Option(
+        None, "--extensions", "-e", help="Extensions to try (comma-separated)"
+    ),
     threads: int = typer.Option(10, "--threads", "-t", help="Concurrent threads"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
@@ -1123,6 +1178,7 @@ def web_dirs(
             if wordlist in ["common_dirs", "common_files", "api_paths"]:
                 # Built-in wordlist
                 from pathlib import Path as PathLib
+
                 wordlist_path = PathLib(__file__).parent / "osint" / "wordlists" / f"{wordlist}.txt"
                 if wordlist_path.exists():
                     wordlist_data = wordlist_path.read_text().strip().split("\n")
@@ -1175,6 +1231,7 @@ def web_dirs(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "path": e.path,
@@ -1202,7 +1259,9 @@ def web_dirs(
 @web_app.command("wellknown")
 def web_wellknown(
     url: str = typer.Argument(..., help="Base URL to scan"),
-    resources: str = typer.Option("all", "--resources", "-r", help="Resources to check (all or comma-separated)"),
+    resources: str = typer.Option(
+        "all", "--resources", "-r", help="Resources to check (all or comma-separated)"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Scan .well-known directory for resources."""
@@ -1241,6 +1300,7 @@ def web_wellknown(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "path": r.path,
@@ -1249,7 +1309,8 @@ def web_wellknown(
                     "content": r.content,
                     "parsed_data": r.parsed_data,
                 }
-                for r in found_resources if r.exists
+                for r in found_resources
+                if r.exists
             ]
 
             with open(output, "w") as f:
@@ -1279,6 +1340,7 @@ def web_archive(
         from_datetime = None
         if from_date:
             from datetime import datetime
+
             from_datetime = datetime.strptime(from_date, "%Y-%m-%d")
 
         # Query archive
@@ -1307,7 +1369,9 @@ def web_archive(
             table.add_row(
                 snapshot.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                 str(snapshot.status_code),
-                snapshot.archive_url[:70] + "..." if len(snapshot.archive_url) > 70 else snapshot.archive_url,
+                snapshot.archive_url[:70] + "..."
+                if len(snapshot.archive_url) > 70
+                else snapshot.archive_url,
             )
 
         console.print(table)
@@ -1315,6 +1379,7 @@ def web_archive(
         # Save if requested
         if output:
             import json
+
             data = {
                 "url": timeline.url,
                 "first_seen": timeline.first_seen.isoformat() if timeline.first_seen else None,
@@ -1342,22 +1407,22 @@ def web_archive(
     console.print("\n[green]✓ Archive query complete[/]")
 
 
-@app.command("job-hunt")
-def job_hunt(
+@app.command("job-scan")
+def job_scan(
     domain: str = typer.Argument(..., help="Company domain to scan (e.g. google.com)"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
     pages: int = typer.Option(5, "--pages", "-p", help="Max pages to crawl per career site"),
 ):
     """Find and analyze job opportunities."""
-    
+
     console.print(f"\n[bold]💼 Job Hunt: {domain}[/]\n")
-    
+
     async def run():
         # 1. Find Career Pages
         console.print("[yellow]Finding career pages...[/]")
         finder = CareerPageFinder()
         career_urls = await finder.find(domain)
-        
+
         if not career_urls:
             console.print(f"[red]No career pages found for {domain}[/]")
             return
@@ -1370,23 +1435,25 @@ def job_hunt(
         console.print(f"\n[yellow]Scanning for opportunities (max {pages} pages each)...[/]")
         analyzer = JobAnalyzer()
         opportunities = []
-        
+
         # Configure spider for this task
         config = CrawlerConfig()
         config.max_requests_per_crawl = pages
         config.max_concurrent_requests = 5
         spider = SpiderNix(config=config)
-        
+
         for start_url in career_urls:
             console.print(f"[cyan]Scanning {start_url}...[/]")
             results = await spider.crawl(
-                start_url, 
+                start_url,
                 max_pages=pages,
                 follow_links=True,
                 # Filter to keep within career sections usually
-                link_filter=lambda x: any(k in x for k in ["career", "job", "position", "opening", "apply"])
+                link_filter=lambda x: any(
+                    k in x for k in ["career", "job", "position", "opening", "apply"]
+                ),
             )
-            
+
             for result in results:
                 opp = analyzer.analyze_opportunity(result)
                 if opp:
@@ -1399,7 +1466,7 @@ def job_hunt(
 
         # Sort by score
         opportunities.sort(key=lambda x: x.score, reverse=True)
-        
+
         table = Table(title=f"Job Opportunities at {domain} ({len(opportunities)})")
         table.add_column("Title", style="green")
         table.add_column("Seniority", style="cyan")
@@ -1415,13 +1482,14 @@ def job_hunt(
                 opp.remote_policy or "-",
                 ", ".join(opp.tech_stack[:3]),
                 f"{opp.score:.1f}",
-                opp.url
+                opp.url,
             )
-            
+
         console.print(table)
-        
+
         if output:
             import json
+
             data = [
                 {
                     "company": o.company,
@@ -1431,7 +1499,7 @@ def job_hunt(
                     "remote": o.remote_policy,
                     "salary": o.salary_range,
                     "tech": o.tech_stack,
-                    "score": o.score
+                    "score": o.score,
                 }
                 for o in opportunities
             ]
@@ -1441,6 +1509,237 @@ def job_hunt(
 
     asyncio.run(run())
     console.print("\n[green]✓ Job hunt complete[/]")
+
+
+@app.command("job-apply")
+def job_apply(
+    url: str = typer.Argument(..., help="Job posting URL"),
+    profile_path: Optional[Path] = typer.Option(
+        None, "--profile", "-p", help="Path to profile.toml"
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Fill form but do not submit"),
+    headless: bool = typer.Option(True, "--headless", help="Run browser headless"),
+    resume: Optional[Path] = typer.Option(None, "--resume", "-r", help="Path to resume PDF"),
+):
+    """
+    🎯 Auto-fill and submit a job application.
+
+    Detects ATS platform, maps your profile to form fields via LLM,
+    shows a TUI diff for approval, then submits via API (Greenhouse/Lever/Ashby)
+    or headless browser fallback.
+
+    Optional ntfy push notification: set NTFY_URL, NTFY_TOPIC, NTFY_TOKEN.
+    """
+    console.print(f"\n[bold]🎯 Job Apply Agent[/]\n")
+
+    async def run():
+        from datetime import datetime
+        from urllib.parse import urlparse
+
+        from .intel.approval_gate import ApprovalContext, request_approval
+        from .intel.ats.api_submit import (
+            SubmitResult,
+            ashby_api_submit,
+            browser_submit_headless,
+            greenhouse_api_submit,
+            lever_api_submit,
+        )
+
+        # 1. Load profile
+        try:
+            profile = load_profile(profile_path)
+            console.print(f"[green]✓[/] Profile: {profile.personal.name}")
+        except FileNotFoundError as e:
+            console.print(f"[red]✗ {e}[/]")
+            raise typer.Exit(1)
+
+        # 2. Detect ATS
+        ats = detect_from_url(url)
+        console.print(f"[cyan]ATS:[/] {ats.value}")
+
+        # 3. Fetch job description via API (no browser)
+        console.print("[cyan]Fetching job description...[/]")
+        job_description = ""
+
+        if ats == ATSPlatform.GREENHOUSE:
+            from .intel.ats.greenhouse import fetch_job_description
+
+            job_description = await fetch_job_description(url)
+        elif ats == ATSPlatform.LEVER:
+            from .intel.ats.lever import fetch_job_description
+
+            job_description = await fetch_job_description(url)
+        elif ats == ATSPlatform.ASHBY:
+            from .intel.ats.ashby import fetch_job_description
+
+            job_description = await fetch_job_description(url)
+        else:
+            import httpx as _httpx
+
+            try:
+                from bs4 import BeautifulSoup
+
+                async with _httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    job_description = soup.get_text(separator=" ", strip=True)[:5000]
+            except Exception:
+                job_description = url
+
+        # 4. Score opportunity
+        from .intel.jobs import JobOpportunity
+
+        opp = JobOpportunity(
+            company=urlparse(url).netloc,
+            url=url,
+            title=job_description[:80],
+            remote_policy="remote" if "remote" in job_description.lower() else None,
+            tech_stack=[s for s in profile.primary_skills if s.lower() in job_description.lower()],
+        )
+        score, reasons = score_opportunity(opp, profile)
+
+        if score == 0.0:
+            console.print(f"[red]✗ Dealbreaker detected — skipping[/]")
+            console.print(f"  {reasons[0]}")
+            return
+
+        console.print(f"[green]Score: {score:.0f}/100[/]  {' · '.join(reasons[:3])}")
+
+        # 5. LLM field mapping + cover letter
+        console.print("[cyan]Generating field mapping...[/]")
+        mapping_result = await generate_mapping(job_description, profile)
+        field_mapping = mapping_result.get("field_mapping", {})
+        cover_letter = mapping_result.get("cover_letter", profile.cover_letter_template)
+
+        company = field_mapping.get("company") or urlparse(url).netloc
+        role = job_description[:80].split("\n")[0].strip() or url
+
+        # 6. Dry run — show table and exit
+        if dry_run:
+            console.print("\n[yellow]── DRY RUN ── form will not be submitted[/]\n")
+            from rich.table import Table as _Table
+
+            table = _Table(show_header=False)
+            table.add_column("Field", style="cyan")
+            table.add_column("Value")
+            for k, v in field_mapping.items():
+                table.add_row(k, str(v)[:80])
+            console.print(table)
+            from rich.panel import Panel as _Panel
+
+            console.print(_Panel(cover_letter[:400] + "...", title="Cover Letter"))
+            return
+
+        # 7. TUI approval gate (ntfy fires in background if NTFY_TOKEN set)
+        ctx = ApprovalContext(
+            job_url=url,
+            company=company,
+            role=role,
+            ats_platform=ats.value,
+            score=score,
+            score_reasons=reasons,
+            field_mapping=field_mapping,
+            cover_letter=cover_letter,
+            salary_expectation=str(profile.preferences.min_salary_usd),
+        )
+
+        approved, final_mapping = await request_approval(ctx)
+
+        if not approved:
+            console.print("[yellow]⊘ Skipped[/]")
+            return
+
+        # 8. Submit — API first, browser headless as last resort
+        console.print("[cyan]Submitting...[/]")
+        result: SubmitResult
+
+        if ats == ATSPlatform.GREENHOUSE:
+            result = await greenhouse_api_submit(url, final_mapping, cover_letter, resume)
+        elif ats == ATSPlatform.LEVER:
+            result = await lever_api_submit(url, final_mapping, cover_letter, resume)
+        elif ats == ATSPlatform.ASHBY:
+            result = await ashby_api_submit(url, final_mapping, cover_letter, resume)
+        else:
+            result = await browser_submit_headless(url, final_mapping, cover_letter, resume)
+
+        if not result.success:
+            console.print(f"[red]✗ Submission failed: {result.message}[/]")
+            from rich.prompt import Confirm as _Confirm
+
+            if _Confirm.ask("Try browser fallback?", default=True):
+                result = await browser_submit_headless(url, final_mapping, cover_letter, resume)
+
+        if result.success:
+            console.print(f"[bold green]✅ {result.message}[/]")
+        else:
+            console.print(f"[red]✗ All methods failed: {result.message}[/]")
+            return
+
+        # 9. Track
+        app = Application(
+            url=url,
+            company=company,
+            role=role,
+            ats_platform=ats.value,
+            status="submitted",
+            applied_at=datetime.now(),
+            cover_letter=cover_letter,
+        )
+        tracker = ApplicationTracker()
+        await tracker.record_application(app)
+        console.print("[dim]✓ Logged to applications.db[/]")
+
+    asyncio.run(run())
+
+
+@app.command("job-history")
+def job_history(
+    status: Optional[str] = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="Filter by status: pending|submitted|rejected|interview|offer|ghosted",
+    ),
+):
+    """📋 Show job application history."""
+
+    async def run():
+        tracker = ApplicationTracker()
+        apps = await tracker.list_applications(status)
+
+        if not apps:
+            console.print("[yellow]No applications found[/]")
+            return
+
+        table = Table(title=f"Applications ({len(apps)})")
+        table.add_column("Company", style="cyan")
+        table.add_column("Role", style="white", max_width=40)
+        table.add_column("ATS", style="dim")
+        table.add_column("Status", style="yellow")
+        table.add_column("Applied", style="dim")
+
+        STATUS_COLORS = {
+            "submitted": "green",
+            "rejected": "red",
+            "interview": "bright_green",
+            "offer": "bold bright_green",
+            "ghosted": "dim",
+            "pending": "yellow",
+        }
+
+        for a in apps:
+            color = STATUS_COLORS.get(a["status"], "white")
+            table.add_row(
+                a["company"] or "-",
+                (a["role"] or "")[:40],
+                a["ats_platform"] or "-",
+                f"[{color}]{a['status']}[/]",
+                a["applied_at"][:10] if a["applied_at"] else "-",
+            )
+
+        console.print(table)
+
+    asyncio.run(run())
 
 
 @app.command()
@@ -1483,7 +1782,9 @@ def presets():
 def advanced_crawl(
     url: str = typer.Argument(..., help="URL to crawl"),
     pages: int = typer.Option(10, "--pages", "-p", help="Max pages to crawl"),
-    preset: Optional[str] = typer.Option(None, "--preset", help="Config preset (run 'presets' to see options)"),
+    preset: Optional[str] = typer.Option(
+        None, "--preset", help="Config preset (run 'presets' to see options)"
+    ),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
     format: str = typer.Option("json", "--format", "-f", help="Output format: json, csv, sqlite"),
     follow: bool = typer.Option(False, "--follow", "-F", help="Follow links on pages"),
@@ -1514,7 +1815,9 @@ def advanced_crawl(
         console.print(f"[cyan]Output: {output} ({format})[/]")
 
     console.print(f"[cyan]Target: {url}[/]")
-    console.print("[cyan]Features: Rate Limiting ✓ | Circuit Breaker ✓ | Deduplication ✓ | Monitoring ✓[/]\n")
+    console.print(
+        "[cyan]Features: Rate Limiting ✓ | Circuit Breaker ✓ | Deduplication ✓ | Monitoring ✓[/]\n"
+    )
 
     # Run crawler with advanced features
     async def run():
@@ -1543,7 +1846,7 @@ def advanced_crawl(
             # Update monitor with final results
             if crawler_monitor:
                 for result in results:
-                    if result and hasattr(result, 'status_code'):
+                    if result and hasattr(result, "status_code"):
                         crawler_monitor.update(
                             url=result.url,
                             status_code=result.status_code,
@@ -1603,6 +1906,7 @@ def generate_html_report(
 ):
     """📊 Generate HTML report from existing results."""
     import json
+
     from .storage import CrawlResult
 
     console.print("\n[bold]📊 Generating HTML Report[/]\n")
@@ -1634,49 +1938,51 @@ if __name__ == "__main__":
 def multimodal_extract(
     url: str = typer.Argument(..., help="Target URL"),
     output: Path = typer.Option("extraction.json", "--output", "-o", help="Output JSON file"),
-    screenshot: Optional[Path] = typer.Option(None, "--screenshot", "-s", help="Save screenshot path"),
+    screenshot: Optional[Path] = typer.Option(
+        None, "--screenshot", "-s", help="Save screenshot path"
+    ),
     headless: bool = typer.Option(True, "--headless", help="Run browser headless"),
     use_proxy: bool = typer.Option(True, "--proxy", help="Use network OPSEC proxy"),
-    vision_model: str = typer.Option("llava-v1.5-7b-q4", "--model", "-m", help="Vision model to use"),
+    vision_model: str = typer.Option(
+        "llava-v1.5-7b-q4", "--model", "-m", help="Vision model to use"
+    ),
     iou_threshold: float = typer.Option(0.5, "--iou", help="IoU threshold for fusion (0-1)"),
 ):
     """
     🤖 Multimodal extraction - Vision + DOM fusion for CSS-independent scraping.
-    
+
     Uses vision AI to detect elements visually, then fuses with DOM for
     high-confidence extractions resilient to CSS class changes.
-    
+
     Example:
         spider recon multimodal https://example.com
         spider recon multimodal https://example.com --model llava-v1.5-7b-q4
         spider recon multimodal https://example.com --iou 0.7 --proxy
     """
     import json
+
     from .extraction import MultimodalExtractor
 
     console.print("\n[bold]🤖 Multimodal Extraction[/]\n")
     console.print(f"Target: [cyan]{url}[/]")
     console.print(f"Vision Model: [yellow]{vision_model}[/]")
     console.print(f"IoU Threshold: [yellow]{iou_threshold}[/]")
-    console.print(f"Network Proxy: [{'green' if use_proxy else 'red'}]{'enabled' if use_proxy else 'disabled'}[/]\n")
+    console.print(
+        f"Network Proxy: [{'green' if use_proxy else 'red'}]{'enabled' if use_proxy else 'disabled'}[/]\n"
+    )
 
     async def run():
-        extractor = MultimodalExtractor(
-            iou_threshold=iou_threshold,
-            vision_model=vision_model
-        )
+        extractor = MultimodalExtractor(iou_threshold=iou_threshold, vision_model=vision_model)
 
         try:
             # Extract from URL
             console.print("[cyan]→[/] Extracting elements...")
             result = await extractor.extract_from_url(
-                url,
-                headless=headless,
-                use_network_proxy=use_proxy
+                url, headless=headless, use_network_proxy=use_proxy
             )
 
             # Save results
-            with open(output, 'w') as f:
+            with open(output, "w") as f:
                 json.dump(result.to_dict(), f, indent=2)
 
             # Print summary
@@ -1689,7 +1995,9 @@ def multimodal_extract(
 
             table.add_row("URL", url)
             table.add_row("Total Elements", str(result.total_elements))
-            table.add_row("Fused (High Conf)", f"{result.fused_count} ({result.fusion_success_rate:.1f}%)")
+            table.add_row(
+                "Fused (High Conf)", f"{result.fused_count} ({result.fusion_success_rate:.1f}%)"
+            )
             table.add_row("Vision Only", str(result.vision_only_count))
             table.add_row("DOM Only", str(result.dom_only_count))
             table.add_row("Resilient Elements", str(len(result.get_resilient_elements())))
@@ -1716,5 +2024,203 @@ def multimodal_extract(
 
         finally:
             await extractor.close()
+
+    asyncio.run(run())
+
+
+@app.command("job-hunt")
+def job_hunt(
+    profile_path: Optional[Path] = typer.Option(
+        None, "--profile", "-p", help="Path to profile.toml"
+    ),
+    once: bool = typer.Option(
+        False, "--once", help="Run one discovery cycle and exit (no daemon)"
+    ),
+    discover_only: bool = typer.Option(
+        False, "--discover-only", help="Discover jobs but do not open apply TUI"
+    ),
+    no_email: bool = typer.Option(False, "--no-email", help="Disable email monitoring"),
+):
+    """
+    🤖 Start the full job hunting automation.
+
+    Runs three loops in parallel:
+      - Discovery: scans RemoteOK, We Work Remotely, Jobicy, HN Hiring,
+        and configured company boards every N hours
+      - Apply: shows TUI for each queued job (human approves before submit)
+      - Email: monitors inbox for replies and updates tracker
+
+    Configure intervals and sources in profile.toml [discovery] and [email].
+
+    Use --once for a single discovery cycle (good for cron).
+    """
+    console.print(f"\n[bold]🤖 Job Hunt Agent[/]\n")
+
+    async def run():
+        try:
+            profile = load_profile(profile_path)
+            console.print(f"[green]✓[/] Profile: {profile.personal.name}")
+        except FileNotFoundError as e:
+            console.print(f"[red]✗ {e}[/]")
+            raise typer.Exit(1)
+
+        from .intel.email_monitor import email_config_from_profile
+        from .intel.scheduler import JobHuntScheduler, SchedulerConfig
+
+        email_cfg = None if no_email else email_config_from_profile(profile)
+        discovery_cfg = getattr(profile, "_discovery_cfg", {})
+
+        scheduler_cfg = SchedulerConfig(
+            discovery_interval_hours=float(discovery_cfg.get("interval_hours", 4.0)),
+            apply_after_discovery=not discover_only,
+        )
+
+        scheduler = JobHuntScheduler(profile, scheduler_cfg, email_cfg)
+
+        if once:
+            result = await scheduler.run_once()
+            console.print(f"\n[green]✓[/] Discovery complete:")
+            console.print(f"  New jobs queued : [green]{result.new_jobs}[/]")
+            console.print(f"  Total scanned   : {result.total_scanned}")
+            console.print(f"  Sources         : {', '.join(result.sources_used)}")
+            if result.top_matches:
+                console.print("\n[bold]Top matches:[/]")
+                for opp, score, reasons in result.top_matches[:5]:
+                    console.print(
+                        f"  [green]{score:.0f}[/] {opp.company} — "
+                        f"{opp.title or '?'}  [dim]{opp.url[:60]}[/]"
+                    )
+        else:
+            await scheduler.run()
+
+    asyncio.run(run())
+
+
+@app.command("job-queue")
+def job_queue(
+    limit: int = typer.Option(20, "--limit", "-n", help="Max jobs to show"),
+    min_score: float = typer.Option(0.0, "--min-score", help="Minimum score filter"),
+):
+    """📋 Show queued job applications pending review."""
+
+    async def run():
+        tracker = ApplicationTracker()
+        apps = await tracker.list_applications(status="queued")
+
+        if not apps:
+            console.print("[yellow]No jobs in queue[/]")
+            console.print("[dim]Run 'spider job-hunt --once' to discover new jobs[/]")
+            return
+
+        table = Table(title=f"Queued Jobs ({len(apps)})")
+        table.add_column("#", style="dim", width=3)
+        table.add_column("Company", style="cyan")
+        table.add_column("Role", style="white", max_width=45)
+        table.add_column("Score", style="yellow", width=7)
+        table.add_column("URL", style="dim", max_width=40)
+
+        shown = 0
+        for i, a in enumerate(apps[:limit], 1):
+            notes = a.get("notes", "")
+            score_match = re.search(r"Score:\s*([\d.]+)", notes or "")
+            score_str = score_match.group(1) if score_match else "?"
+
+            if min_score > 0 and score_match:
+                if float(score_match.group(1)) < min_score:
+                    continue
+
+            table.add_row(
+                str(i),
+                a["company"] or "-",
+                (a["role"] or "")[:45],
+                score_str,
+                (a["url"] or "")[:40],
+            )
+            shown += 1
+
+        console.print(table)
+        console.print(
+            f"\n[dim]Run 'spider job-apply <url>' to apply, "
+            f"or 'spider job-hunt' to process the queue[/]"
+        )
+
+    asyncio.run(run())
+
+
+@app.command("job-status")
+def job_status():
+    """📊 Full pipeline dashboard."""
+
+    async def run():
+        tracker = ApplicationTracker()
+        all_apps = await tracker.list_applications()
+
+        if not all_apps:
+            console.print("[yellow]No applications tracked yet[/]")
+            return
+
+        counts: dict[str, int] = {}
+        for a in all_apps:
+            s = a.get("status", "unknown")
+            counts[s] = counts.get(s, 0) + 1
+
+        STATUS_ORDER = [
+            "queued",
+            "submitted",
+            "followup",
+            "interview",
+            "offer",
+            "rejected",
+            "ghosted",
+            "skipped",
+        ]
+        STATUS_COLORS = {
+            "queued": "yellow",
+            "submitted": "cyan",
+            "interview": "bold green",
+            "offer": "bold bright_green",
+            "rejected": "red",
+            "ghosted": "dim",
+            "skipped": "dim",
+            "followup": "blue",
+        }
+
+        table = Table(title="Pipeline Status", show_header=True)
+        table.add_column("Status", style="bold")
+        table.add_column("Count", justify="right")
+        table.add_column("Bar")
+
+        total = len(all_apps)
+        max_count = max(counts.values()) if counts else 1
+
+        for status in STATUS_ORDER:
+            count = counts.get(status, 0)
+            if count == 0:
+                continue
+            color = STATUS_COLORS.get(status, "white")
+            bar_len = int((count / max_count) * 20)
+            bar = f"[{color}]{'█' * bar_len}[/]"
+            table.add_row(f"[{color}]{status}[/]", str(count), bar)
+
+        console.print(table)
+        console.print(f"\n[dim]Total tracked: {total}[/]")
+
+        recent = sorted(
+            [a for a in all_apps if a.get("last_updated")],
+            key=lambda x: x["last_updated"],
+            reverse=True,
+        )[:5]
+
+        if recent:
+            console.print("\n[bold]Recent activity:[/]")
+            for a in recent:
+                updated = a["last_updated"][:16] if a["last_updated"] else "?"
+                status = a.get("status", "?")
+                color = STATUS_COLORS.get(status, "white")
+                console.print(
+                    f"  [dim]{updated}[/]  [{color}]{status:12}[/]  "
+                    f"[cyan]{a.get('company', '?')[:20]}[/] — "
+                    f"{(a.get('role') or '')[:35]}"
+                )
 
     asyncio.run(run())

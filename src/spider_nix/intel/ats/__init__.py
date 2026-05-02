@@ -1,0 +1,1 @@
+"""ATS platform adapters."""
