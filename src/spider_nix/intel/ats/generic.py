@@ -2,21 +2,26 @@
 Generic ATS adapter using FormAnalyzer + LLM field mapping.
 
 Used when ATS is unknown. Extracts all form fields via FormAnalyzer,
-sends them to LLM to map against profile, then fills via Playwright.
+sends them to LLM to map against profile, then fills via Playwright
+using human behavioral simulation to avoid bot detection.
 """
 
-import httpx
+import asyncio
+import logging
+
 from playwright.async_api import Page
 
 from ...osint.web_discovery import FormAnalyzer
+from ..human_behavior import human_move_to, human_type
 from ..llm_mapper import generate_mapping
 from ..profile import Profile
+
+logger = logging.getLogger(__name__)
 
 
 async def fetch_job_description(page: Page) -> str:
     """Extract job description from current page via text content."""
     try:
-        # Get all visible text
         text = await page.evaluate("""
             () => {
                 const selectors = [
@@ -42,15 +47,33 @@ async def fetch_job_description(page: Page) -> str:
 
 async def fill_form(page: Page, field_mapping: dict, cover_letter: str) -> bool:
     """
-    Fill generic form using LLM-guided field matching.
+    Fill a generic form with human behavioral simulation.
 
-    Strategy:
-    1. Get all input/textarea elements and their labels
-    2. For each field, use fuzzy matching against field_mapping keys
-    3. Fill matched fields
+    Timeout layers:
+      - 30 s  form field discovery
+      - 60 s  total form filling (all fields)
+      -  5 s  per individual field
     """
-    # Get all form fields with their labels/names/placeholders
-    fields = await page.evaluate("""
+    try:
+        async with asyncio.timeout(30):
+            fields = await _discover_fields(page)
+    except TimeoutError:
+        logger.warning("generic.fill_form: field discovery timed out")
+        return False
+
+    full_mapping = {**field_mapping, "cover_letter": cover_letter}
+
+    try:
+        async with asyncio.timeout(60):
+            await _fill_fields(page, fields, full_mapping)
+    except TimeoutError:
+        logger.warning("generic.fill_form: filling timed out after 60 s (partial fill)")
+
+    return True
+
+
+async def _discover_fields(page: Page) -> list[dict]:
+    return await page.evaluate("""
         () => {
             const inputs = document.querySelectorAll(
                 'input:not([type="hidden"]):not([type="submit"]):not([type="file"]), textarea'
@@ -70,34 +93,49 @@ async def fill_form(page: Page, field_mapping: dict, cover_letter: str) -> bool:
         }
     """)
 
-    full_mapping = {**field_mapping, "cover_letter": cover_letter}
 
+async def _fill_fields(page: Page, fields: list[dict], mapping: dict) -> None:
     for field in fields:
-        # Build a search key from all field identifiers
-        search_key = " ".join(
-            [
-                field.get("name", ""),
-                field.get("id", ""),
-                field.get("placeholder", ""),
-                field.get("label", ""),
-            ]
-        ).lower()
+        search_key = " ".join([
+            field.get("name", ""),
+            field.get("id", ""),
+            field.get("placeholder", ""),
+            field.get("label", ""),
+        ]).lower()
 
-        # Fuzzy match against our known field keys
-        matched_value = _fuzzy_match(search_key, full_mapping)
-        if not matched_value:
+        value = _fuzzy_match(search_key, mapping)
+        if not value:
             continue
+
+        selector = field["selector"]
 
         try:
-            selector = field["selector"]
-            element = await page.query_selector(selector)
-            if element:
-                await element.click()
-                await element.fill(str(matched_value))
-        except Exception:
-            continue
+            async with asyncio.timeout(5):
+                el = await page.query_selector(selector)
+                if el is None:
+                    continue
 
-    return True
+                # Move mouse to field before interacting (Layer 3: mouse trajectory)
+                await human_move_to(page, el, overshoot=False)
+
+                field_type = field.get("type", "text")
+                if field_type == "checkbox":
+                    if str(value).lower() in ("true", "yes", "1"):
+                        await el.check()
+                elif field_type in ("radio", "select-one"):
+                    await el.click()
+                elif field.get("tag") == "TEXTAREA" or field_type == "text":
+                    await el.click()
+                    await el.select_text()
+                    # Human typing (Layer 3: keystroke dynamics)
+                    await human_type(page, selector, str(value))
+                else:
+                    await el.fill(str(value))
+
+        except TimeoutError:
+            logger.debug("Field fill timed out: %s", selector)
+        except Exception as exc:
+            logger.debug("Field fill error (%s): %s", selector, exc)
 
 
 def _fuzzy_match(search_key: str, mapping: dict) -> str | None:

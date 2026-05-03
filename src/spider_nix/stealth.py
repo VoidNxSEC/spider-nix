@@ -168,10 +168,19 @@ class StealthEngine:
         // ============================================================
         // Navigator properties override
         // ============================================================
-        Object.defineProperty(navigator, 'webdriver', {{
-            get: markPatched(() => undefined),
-            configurable: true
-        }});
+        // Delete the webdriver descriptor entirely — any getter returning
+        // undefined still appears in getOwnPropertyDescriptor probes.
+        // After deletion, navigator.webdriver is simply undefined.
+        try {{
+            Object.defineProperty(Navigator.prototype, 'webdriver', {{
+                get: markPatched(() => undefined),
+                set: undefined,
+                enumerable: false,
+                configurable: true,
+            }});
+            // Also delete the own property if present (CDP/chromedriver adds it)
+            delete navigator.__proto__.webdriver;
+        }} catch (_) {{}}
         Object.defineProperty(navigator, 'languages', {{
             get: markPatched(() => ['{fingerprint["language"]}', 'en']),
             configurable: true

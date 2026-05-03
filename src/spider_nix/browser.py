@@ -107,20 +107,22 @@ class BrowserCrawler:
             # Inject stealth script
             await context.add_init_script(self.stealth.get_playwright_stealth_script())
             
-            page = await context.new_page()
-            
             while queue and len(visited) < max_pages:
                 url = queue.pop(0)
-                
+
                 if url in visited:
                     continue
-                
+
                 visited.add(url)
-                
+
                 try:
+                    # Fresh page per URL — prevents cookie/state contamination across sites
+                    page = await context.new_page()
+                    await page.wait_for_timeout(150)  # stealth init race settle
                     result = await self._fetch_page(
                         page, url, wait_for, screenshot
                     )
+                    await page.close()
                     
                     if result:
                         self._results.append(result)
@@ -169,7 +171,7 @@ class BrowserCrawler:
         start = time.monotonic()
         
         try:
-            response = await page.goto(url, wait_until="networkidle")
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
             
             if wait_for:
                 await page.wait_for_selector(wait_for, timeout=10000)

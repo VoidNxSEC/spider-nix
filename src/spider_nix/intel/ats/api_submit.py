@@ -284,14 +284,22 @@ async def browser_submit_headless(
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
+            # Fresh fingerprint per call — identical viewport every time is a bot signal
+            fp = crawler.stealth.get_fingerprint()
             context = await browser.new_context(
                 user_agent=crawler.stealth.get_user_agent(),
-                viewport={"width": 1440, "height": 900},
+                viewport={"width": fp["screen"]["width"], "height": fp["screen"]["height"]},
+                locale=fp["language"],
+                timezone_id=fp["timezone"],
+                ignore_https_errors=True,
             )
             await context.add_init_script(crawler.stealth.get_playwright_stealth_script())
             page = await context.new_page()
+            # 150 ms settle — closes stealth injection race on first navigation
+            await page.wait_for_timeout(150)
 
-            await page.goto(url, wait_until="networkidle")
+            # domcontentloaded + explicit timeout — networkidle hangs on long-polling pages
+            await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
             await fill_form(page, mapping, cover_letter)
 
             if resume_path and resume_path.exists():
