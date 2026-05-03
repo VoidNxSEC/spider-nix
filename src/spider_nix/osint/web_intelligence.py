@@ -185,7 +185,9 @@ class StructuredDataExtractor:
         og_data = {}
 
         # Find all og: meta tags
-        pattern = r'<meta\s+property\s*=\s*["\']og:([^"\']+)["\']\s+content\s*=\s*["\']([^"\']*)["\']'
+        pattern = (
+            r'<meta\s+property\s*=\s*["\']og:([^"\']+)["\']\s+content\s*=\s*["\']([^"\']*)["\']'
+        )
         matches = re.finditer(pattern, html, re.IGNORECASE)
 
         for match in matches:
@@ -243,7 +245,9 @@ class StructuredDataExtractor:
         results = []
 
         # Find elements with itemscope
-        itemscope_pattern = r'<[^>]+itemscope[^>]+itemtype\s*=\s*["\']([^"\']+)["\'][^>]*>(.*?)</[^>]+>'
+        itemscope_pattern = (
+            r'<[^>]+itemscope[^>]+itemtype\s*=\s*["\']([^"\']+)["\'][^>]*>(.*?)</[^>]+>'
+        )
         matches = re.finditer(itemscope_pattern, html, re.IGNORECASE | re.DOTALL)
 
         for match in matches:
@@ -397,7 +401,9 @@ class SitemapParser:
                     lastmod = None
                     if lastmod_elem is not None:
                         try:
-                            lastmod = datetime.fromisoformat(lastmod_elem.text.replace("Z", "+00:00"))
+                            lastmod = datetime.fromisoformat(
+                                lastmod_elem.text.replace("Z", "+00:00")
+                            )
                         except ValueError:
                             pass
 
@@ -413,7 +419,9 @@ class SitemapParser:
                         SitemapURL(
                             loc=loc.text,
                             lastmod=lastmod,
-                            changefreq=changefreq_elem.text if changefreq_elem is not None else None,
+                            changefreq=changefreq_elem.text
+                            if changefreq_elem is not None
+                            else None,
                             priority=priority,
                             source_sitemap=source_url,
                         )
@@ -455,9 +463,20 @@ class RobotsTxtAnalyzer:
     """
 
     INTERESTING_KEYWORDS = [
-        "admin", "api", "private", "internal", "v1", "v2",
-        "graphql", "backup", "config", "dashboard", "portal",
-        "staging", "dev", "test",
+        "admin",
+        "api",
+        "private",
+        "internal",
+        "v1",
+        "v2",
+        "graphql",
+        "backup",
+        "config",
+        "dashboard",
+        "portal",
+        "staging",
+        "dev",
+        "test",
     ]
 
     async def analyze(self, domain: str) -> RobotsAnalysis:

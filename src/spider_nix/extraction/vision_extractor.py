@@ -82,9 +82,7 @@ class VisionExtractor:
                 f"Failed to load vision model {self.model_id}: {e.response.text}"
             ) from e
         except httpx.RequestError as e:
-            raise RuntimeError(
-                f"Cannot connect to ml-offload-api at {self.api_url}: {e}"
-            ) from e
+            raise RuntimeError(f"Cannot connect to ml-offload-api at {self.api_url}: {e}") from e
 
     async def analyze_screenshot(
         self,
@@ -155,9 +153,7 @@ class VisionExtractor:
             return detections
 
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(
-                f"Vision inference failed: {e.response.text}"
-            ) from e
+            raise RuntimeError(f"Vision inference failed: {e.response.text}") from e
 
     async def extract_text_regions(
         self,
@@ -228,6 +224,7 @@ class VisionExtractor:
 
         For compatibility with sync code. Prefer async version.
         """
+
         async def _run():
             async with self:
                 return await self.analyze_screenshot(

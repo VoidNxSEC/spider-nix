@@ -12,9 +12,7 @@ def score_opportunity(opp: JobOpportunity, profile: Profile) -> tuple[float, lis
     """
     score = 0.0
     reasons = []
-    content = (
-        f"{opp.title or ''} {opp.remote_policy or ''} {' '.join(opp.tech_stack)}"
-    ).lower()
+    content = (f"{opp.title or ''} {opp.remote_policy or ''} {' '.join(opp.tech_stack)}").lower()
 
     # Dealbreaker check — return immediately
     for db in profile.preferences.dealbreakers:
@@ -55,4 +53,3 @@ def score_opportunity(opp: JobOpportunity, profile: Profile) -> tuple[float, lis
         score += 5.0
 
     return min(score, 100.0), reasons
-

@@ -96,12 +96,14 @@ async def _discover_fields(page: Page) -> list[dict]:
 
 async def _fill_fields(page: Page, fields: list[dict], mapping: dict) -> None:
     for field in fields:
-        search_key = " ".join([
-            field.get("name", ""),
-            field.get("id", ""),
-            field.get("placeholder", ""),
-            field.get("label", ""),
-        ]).lower()
+        search_key = " ".join(
+            [
+                field.get("name", ""),
+                field.get("id", ""),
+                field.get("placeholder", ""),
+                field.get("label", ""),
+            ]
+        ).lower()
 
         value = _fuzzy_match(search_key, mapping)
         if not value:

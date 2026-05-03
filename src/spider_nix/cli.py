@@ -2033,9 +2033,7 @@ def job_hunt(
     profile_path: Optional[Path] = typer.Option(
         None, "--profile", "-p", help="Path to profile.toml"
     ),
-    once: bool = typer.Option(
-        False, "--once", help="Run one discovery cycle and exit (no daemon)"
-    ),
+    once: bool = typer.Option(False, "--once", help="Run one discovery cycle and exit (no daemon)"),
     discover_only: bool = typer.Option(
         False, "--discover-only", help="Discover jobs but do not open apply TUI"
     ),

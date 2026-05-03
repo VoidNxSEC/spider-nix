@@ -52,15 +52,15 @@ class Profile:
 Name: {self.personal.name}
 Location: {self.personal.location}
 Current Role: {self.current_experience.title} at {self.current_experience.company}
-Primary Skills: {', '.join(self.primary_skills)}
-Secondary Skills: {', '.join(self.secondary_skills)}
+Primary Skills: {", ".join(self.primary_skills)}
+Secondary Skills: {", ".join(self.secondary_skills)}
 GitHub: {self.personal.github}
 Website: {self.personal.website}
 LinkedIn: {self.personal.linkedin}
 Remote Only: {self.preferences.remote_only}
 Min Salary (USD): {self.preferences.min_salary_usd}
-Target Roles: {', '.join(self.preferences.target_roles)}
-Dealbreakers: {', '.join(self.preferences.dealbreakers)}
+Target Roles: {", ".join(self.preferences.target_roles)}
+Dealbreakers: {", ".join(self.preferences.dealbreakers)}
         """.strip()
 
 
@@ -122,8 +122,8 @@ def _parse_profile(data: dict) -> Profile:
     )
 
     if "discovery" in data:
-        setattr(profile, '_discovery_cfg', data["discovery"])
+        setattr(profile, "_discovery_cfg", data["discovery"])
     if "email" in data:
-        setattr(profile, '_email_cfg', data["email"])
+        setattr(profile, "_email_cfg", data["email"])
 
     return profile

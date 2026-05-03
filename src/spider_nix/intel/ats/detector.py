@@ -50,4 +50,3 @@ def detect_from_html(html: str) -> ATSPlatform:
     if "workday" in html_lower:
         return ATSPlatform.WORKDAY
     return ATSPlatform.GENERIC
-

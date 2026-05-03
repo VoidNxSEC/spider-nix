@@ -131,7 +131,9 @@ async def human_move_to(
     dest_x = box["x"] + box["width"] * random.uniform(0.3, 0.7)
     dest_y = box["y"] + box["height"] * random.uniform(0.3, 0.7)
 
-    current = await page.evaluate("() => ({ x: window._lastMouseX || 0, y: window._lastMouseY || 0 })")
+    current = await page.evaluate(
+        "() => ({ x: window._lastMouseX || 0, y: window._lastMouseY || 0 })"
+    )
     src_x, src_y = current.get("x", 0.0), current.get("y", 0.0)
 
     n_points = random.randint(35, 55)

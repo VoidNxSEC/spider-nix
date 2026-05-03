@@ -83,87 +83,87 @@ class TechnologyDetector:
         "React": {
             "category": "framework",
             "patterns": [
-                r'react\.(?:min\.)?js',
-                r'data-reactroot',
-                r'__REACT_DEVTOOLS',
+                r"react\.(?:min\.)?js",
+                r"data-reactroot",
+                r"__REACT_DEVTOOLS",
             ],
         },
         "Vue.js": {
             "category": "framework",
             "patterns": [
-                r'vue\.(?:min\.)?js',
-                r'data-v-[a-f0-9]{8}',
-                r'__VUE__',
+                r"vue\.(?:min\.)?js",
+                r"data-v-[a-f0-9]{8}",
+                r"__VUE__",
             ],
         },
         "Angular": {
             "category": "framework",
             "patterns": [
-                r'angular\.(?:min\.)?js',
-                r'ng-app',
-                r'ng-controller',
+                r"angular\.(?:min\.)?js",
+                r"ng-app",
+                r"ng-controller",
             ],
         },
         "Next.js": {
             "category": "framework",
             "patterns": [
-                r'/_next/static/',
-                r'__NEXT_DATA__',
+                r"/_next/static/",
+                r"__NEXT_DATA__",
             ],
         },
         "Nuxt.js": {
             "category": "framework",
             "patterns": [
-                r'/_nuxt/',
-                r'__NUXT__',
+                r"/_nuxt/",
+                r"__NUXT__",
             ],
         },
         # CMS
         "WordPress": {
             "category": "cms",
             "patterns": [
-                r'/wp-content/',
-                r'/wp-includes/',
-                r'wp-json',
+                r"/wp-content/",
+                r"/wp-includes/",
+                r"wp-json",
             ],
         },
         "Drupal": {
             "category": "cms",
             "patterns": [
-                r'/sites/default/',
-                r'Drupal\.settings',
-                r'/misc/drupal\.js',
+                r"/sites/default/",
+                r"Drupal\.settings",
+                r"/misc/drupal\.js",
             ],
         },
         "Joomla": {
             "category": "cms",
             "patterns": [
-                r'/components/com_',
-                r'/media/jui/',
-                r'joomla',
+                r"/components/com_",
+                r"/media/jui/",
+                r"joomla",
             ],
         },
         # Analytics
         "Google Analytics": {
             "category": "analytics",
             "patterns": [
-                r'google-analytics\.com/analytics\.js',
-                r'googletagmanager\.com/gtag',
-                r'ga\(\'create\'',
+                r"google-analytics\.com/analytics\.js",
+                r"googletagmanager\.com/gtag",
+                r"ga\(\'create\'",
             ],
         },
         "Google Tag Manager": {
             "category": "analytics",
             "patterns": [
-                r'googletagmanager\.com/gtm\.js',
-                r'dataLayer',
+                r"googletagmanager\.com/gtm\.js",
+                r"dataLayer",
             ],
         },
         # CDN
         "Cloudflare": {
             "category": "cdn",
             "patterns": [
-                r'cloudflare',
+                r"cloudflare",
             ],
             "headers": ["cf-ray", "cf-cache-status"],
         },
@@ -184,15 +184,15 @@ class TechnologyDetector:
         "jQuery": {
             "category": "library",
             "patterns": [
-                r'jquery\.(?:min\.)?js',
-                r'jQuery\.fn\.jquery',
+                r"jquery\.(?:min\.)?js",
+                r"jQuery\.fn\.jquery",
             ],
         },
         "Bootstrap": {
             "category": "library",
             "patterns": [
-                r'bootstrap\.(?:min\.)?css',
-                r'bootstrap\.(?:min\.)?js',
+                r"bootstrap\.(?:min\.)?css",
+                r"bootstrap\.(?:min\.)?js",
             ],
         },
     }
@@ -200,52 +200,52 @@ class TechnologyDetector:
     # Version detection patterns (library -> regex patterns)
     VERSION_PATTERNS = {
         "React": [
-            r'react@([0-9.]+)',
+            r"react@([0-9.]+)",
             r'react\.version\s*=\s*["\']([0-9.]+)["\']',
-            r'React\s+v?([0-9.]+)',
+            r"React\s+v?([0-9.]+)",
         ],
         "Vue.js": [
-            r'vue@([0-9.]+)',
+            r"vue@([0-9.]+)",
             r'Vue\.version\s*=\s*["\']([0-9.]+)["\']',
-            r'vue\.js\s+v?([0-9.]+)',
+            r"vue\.js\s+v?([0-9.]+)",
         ],
         "Angular": [
-            r'@angular/core@([0-9.]+)',
-            r'Angular\s+v?([0-9.]+)',
+            r"@angular/core@([0-9.]+)",
+            r"Angular\s+v?([0-9.]+)",
         ],
         "jQuery": [
-            r'jquery@([0-9.]+)',
-            r'jQuery\s+v?([0-9.]+)',
-            r'jquery-([0-9.]+)\.min\.js',
+            r"jquery@([0-9.]+)",
+            r"jQuery\s+v?([0-9.]+)",
+            r"jquery-([0-9.]+)\.min\.js",
         ],
         "Bootstrap": [
-            r'bootstrap@([0-9.]+)',
-            r'bootstrap-([0-9.]+)\.min',
+            r"bootstrap@([0-9.]+)",
+            r"bootstrap-([0-9.]+)\.min",
         ],
         "Next.js": [
-            r'next@([0-9.]+)',
+            r"next@([0-9.]+)",
             r'"buildId":"([^"]+)"',  # Build ID instead of version
         ],
         "Nuxt.js": [
-            r'nuxt@([0-9.]+)',
+            r"nuxt@([0-9.]+)",
         ],
         "Webpack": [
-            r'webpack@([0-9.]+)',
-            r'/webpack\.([0-9.]+)',
+            r"webpack@([0-9.]+)",
+            r"/webpack\.([0-9.]+)",
         ],
         "Vite": [
-            r'vite@([0-9.]+)',
+            r"vite@([0-9.]+)",
         ],
     }
 
     # CDN detection patterns (CDN name -> regex pattern)
     CDN_PATTERNS = {
-        "cdnjs": r'cdnjs\.cloudflare\.com/ajax/libs/([^/]+)/([^/]+)',
-        "unpkg": r'unpkg\.com/([^@/]+)@([^/]+)',
-        "jsdelivr": r'cdn\.jsdelivr\.net/npm/([^@/]+)@([^/]+)',
-        "googleapis": r'ajax\.googleapis\.com/ajax/libs/([^/]+)/([^/]+)',
-        "cloudflare": r'cdnjs\.cloudflare\.com',
-        "fastly": r'fastly\.jsdelivr\.net',
+        "cdnjs": r"cdnjs\.cloudflare\.com/ajax/libs/([^/]+)/([^/]+)",
+        "unpkg": r"unpkg\.com/([^@/]+)@([^/]+)",
+        "jsdelivr": r"cdn\.jsdelivr\.net/npm/([^@/]+)@([^/]+)",
+        "googleapis": r"ajax\.googleapis\.com/ajax/libs/([^/]+)/([^/]+)",
+        "cloudflare": r"cdnjs\.cloudflare\.com",
+        "fastly": r"fastly\.jsdelivr\.net",
     }
 
     def detect(self, html: str, headers: dict[str, str] | None = None) -> list[TechStack]:
@@ -426,21 +426,21 @@ class ContactHarvester:
     """Extract contact information (emails, phones, social media) from content."""
 
     # Regex patterns
-    EMAIL_PATTERN = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    EMAIL_PATTERN = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
 
     # Phone patterns (US, international)
     PHONE_PATTERNS = [
-        r'\+?1?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}',  # US
-        r'\+\d{1,3}\s?\d{1,4}\s?\d{1,4}\s?\d{1,9}',      # International
+        r"\+?1?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}",  # US
+        r"\+\d{1,3}\s?\d{1,4}\s?\d{1,4}\s?\d{1,9}",  # International
     ]
 
     # Social media patterns
     SOCIAL_PATTERNS = {
-        "twitter": r'(?:twitter\.com|x\.com)/([A-Za-z0-9_]{1,15})',
-        "linkedin": r'linkedin\.com/in/([A-Za-z0-9_-]+)',
-        "github": r'github\.com/([A-Za-z0-9_-]+)',
-        "facebook": r'facebook\.com/([A-Za-z0-9._-]+)',
-        "instagram": r'instagram\.com/([A-Za-z0-9._]+)',
+        "twitter": r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]{1,15})",
+        "linkedin": r"linkedin\.com/in/([A-Za-z0-9_-]+)",
+        "github": r"github\.com/([A-Za-z0-9_-]+)",
+        "facebook": r"facebook\.com/([A-Za-z0-9._-]+)",
+        "instagram": r"instagram\.com/([A-Za-z0-9._]+)",
     }
 
     def extract_emails(self, html: str) -> list[Contact]:
@@ -490,13 +490,10 @@ class APIDiscovery:
         # Fetch/axios calls
         r'fetch\([\'"]([^\'"]+)[\'"]',
         r'axios\.(?:get|post|put|delete)\([\'"]([^\'"]+)[\'"]',
-
         # jQuery ajax
         r'\$\.ajax\({[^}]*url:\s*[\'"]([^\'"]+)[\'"]',
-
         # Direct URLs in JS
         r'[\'"]/(api|v\d+|graphql|rest)/[^\'"]+[\'"]',
-
         # Common API paths
         r'[\'"]https?://[^\'"]+/(?:api|v\d+|graphql|rest)/[^\'"]+[\'"]',
     ]
@@ -521,7 +518,7 @@ class APIDiscovery:
         api_endpoints = []
         for endpoint in endpoints:
             # Normalize endpoint
-            if not endpoint.startswith('http'):
+            if not endpoint.startswith("http"):
                 endpoint = urljoin(base_url, endpoint)
 
             parsed = urlparse(endpoint)
@@ -531,11 +528,11 @@ class APIDiscovery:
             params = []
 
             # Look for template variables
-            template_vars = re.findall(r'\{(\w+)\}', path)
+            template_vars = re.findall(r"\{(\w+)\}", path)
             params.extend(template_vars)
 
             # Look for :param style
-            colon_vars = re.findall(r':(\w+)', path)
+            colon_vars = re.findall(r":(\w+)", path)
             params.extend(colon_vars)
 
             api_endpoints.append(
@@ -613,7 +610,7 @@ class ContentAnalyzer:
     @staticmethod
     def _extract_title(html: str) -> str | None:
         """Extract page title."""
-        match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
+        match = re.search(r"<title[^>]*>([^<]+)</title>", html, re.IGNORECASE)
         return match.group(1).strip() if match else None
 
     @staticmethod

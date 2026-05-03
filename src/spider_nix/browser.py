@@ -32,7 +32,7 @@ class BrowserCrawler:
         self.use_network_proxy = use_network_proxy
         self.network_proxy_url = network_proxy_url
         self._results: list[CrawlResult] = []
-    
+
     async def crawl(
         self,
         start_url: str,
@@ -45,7 +45,7 @@ class BrowserCrawler:
     ) -> list[CrawlResult]:
         """
         Crawl using headless browser.
-        
+
         Args:
             start_url: Starting URL
             max_pages: Max pages to crawl
@@ -58,18 +58,20 @@ class BrowserCrawler:
         try:
             from playwright.async_api import async_playwright
         except ImportError:
-            console.print("[red]Playwright not installed. Run: pip install playwright && playwright install[/]")
+            console.print(
+                "[red]Playwright not installed. Run: pip install playwright && playwright install[/]"
+            )
             return []
-        
+
         max_pages = max_pages or self.config.max_requests_per_crawl
         self._results.clear()
         visited: set[str] = set()
         queue = [start_url]
-        
+
         async with async_playwright() as p:
             # Launch browser
             browser_type = getattr(p, self.config.browser_type)
-            
+
             launch_args = {
                 "headless": self.config.headless,
                 "args": [
@@ -78,7 +80,7 @@ class BrowserCrawler:
                     "--no-sandbox",
                 ],
             }
-            
+
             # Add proxy if available
             # Priority: Network OPSEC proxy > regular proxy rotator
             if self.use_network_proxy:
@@ -88,9 +90,9 @@ class BrowserCrawler:
                 proxy_url = self.proxy.get_next()
                 if proxy_url:
                     launch_args["proxy"] = {"server": proxy_url}
-            
+
             browser = await browser_type.launch(**launch_args)
-            
+
             # Create context with stealth
             fingerprint = self.stealth.get_fingerprint()
             context = await browser.new_context(
@@ -103,10 +105,10 @@ class BrowserCrawler:
                 timezone_id=fingerprint["timezone"],
                 ignore_https_errors=True,  # Allow MITM proxy
             )
-            
+
             # Inject stealth script
             await context.add_init_script(self.stealth.get_playwright_stealth_script())
-            
+
             while queue and len(visited) < max_pages:
                 url = queue.pop(0)
 
@@ -119,19 +121,17 @@ class BrowserCrawler:
                     # Fresh page per URL — prevents cookie/state contamination across sites
                     page = await context.new_page()
                     await page.wait_for_timeout(150)  # stealth init race settle
-                    result = await self._fetch_page(
-                        page, url, wait_for, screenshot
-                    )
+                    result = await self._fetch_page(page, url, wait_for, screenshot)
                     await page.close()
-                    
+
                     if result:
                         self._results.append(result)
-                        
+
                         if storage:
                             await storage.save(result)
-                        
+
                         console.print(f"[green]✓[/] [browser] {url}")
-                        
+
                         # Follow links
                         if follow_links and result.status_code == 200:
                             links = await self._extract_links(page, url)
@@ -139,25 +139,28 @@ class BrowserCrawler:
                                 if link not in visited:
                                     if link_filter is None or link_filter(link):
                                         queue.append(link)
-                        
+
                         # Human-like delay
                         if self.config.stealth.human_like_delays:
-                            delay = self.stealth.get_random_delay_ms(
-                                self.config.stealth.min_delay_ms,
-                                self.config.stealth.max_delay_ms,
-                            ) / 1000
+                            delay = (
+                                self.stealth.get_random_delay_ms(
+                                    self.config.stealth.min_delay_ms,
+                                    self.config.stealth.max_delay_ms,
+                                )
+                                / 1000
+                            )
                             await asyncio.sleep(delay)
-                
+
                 except Exception as e:
                     console.print(f"[red]✗[/] [browser] {url}: {e}")
-            
+
             await browser.close()
-        
+
         if storage:
             await storage.close()
-        
+
         return self._results
-    
+
     async def _fetch_page(
         self,
         page,
@@ -167,31 +170,31 @@ class BrowserCrawler:
     ) -> CrawlResult | None:
         """Fetch a single page with browser."""
         import time
-        
+
         start = time.monotonic()
-        
+
         try:
             response = await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-            
+
             if wait_for:
                 await page.wait_for_selector(wait_for, timeout=10000)
-            
+
             # Get rendered content
             content = await page.content()
             elapsed_ms = (time.monotonic() - start) * 1000
-            
+
             metadata = {
                 "elapsed_ms": elapsed_ms,
                 "browser": self.config.browser_type,
                 "rendered": True,
             }
-            
+
             # Screenshot if requested
             if screenshot:
                 screenshot_path = f"screenshots/{url.replace('/', '_')[:50]}.png"
                 await page.screenshot(path=screenshot_path)
                 metadata["screenshot"] = screenshot_path
-            
+
             return CrawlResult(
                 url=url,
                 status_code=response.status if response else 0,
@@ -199,23 +202,19 @@ class BrowserCrawler:
                 headers=dict(response.headers) if response else {},
                 metadata=metadata,
             )
-            
+
         except Exception as e:
             console.print(f"[red]Browser error:[/] {e}")
             return None
-    
+
     async def _extract_links(self, page, base_url: str) -> list[str]:
         """Extract links using browser."""
         from urllib.parse import urlparse
-        
+
         links = await page.eval_on_selector_all(
-            "a[href]",
-            "elements => elements.map(el => el.href)"
+            "a[href]", "elements => elements.map(el => el.href)"
         )
-        
+
         # Filter to same domain
         base_domain = urlparse(base_url).netloc
-        return [
-            link for link in links
-            if urlparse(link).netloc == base_domain
-        ]
+        return [link for link in links if urlparse(link).netloc == base_domain]

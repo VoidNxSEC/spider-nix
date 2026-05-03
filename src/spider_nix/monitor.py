@@ -84,9 +84,7 @@ class CrawlStatistics:
         # Update average (running average)
         n = self.total_requests
         if n > 0:
-            self.avg_response_time_ms = (
-                (self.avg_response_time_ms * (n - 1) + response_time_ms) / n
-            )
+            self.avg_response_time_ms = (self.avg_response_time_ms * (n - 1) + response_time_ms) / n
 
         # Update bucket
         if response_time_ms < 500:
@@ -219,7 +217,9 @@ class CrawlMonitor:
         table.add_column("Value", style="white")
 
         elapsed = self.stats.elapsed_time()
-        elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
+        elapsed_str = (
+            f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
+        )
 
         table.add_row("Elapsed Time", elapsed_str)
         table.add_row(
@@ -368,9 +368,7 @@ class CrawlMonitor:
         # Response time distribution
         self.console.print("\n[bold cyan]Response Time Distribution:[/]")
         for bucket, count in self.stats.response_time_buckets.items():
-            percentage = (
-                (count / max(self.stats.total_requests, 1)) * 100
-            )
+            percentage = (count / max(self.stats.total_requests, 1)) * 100
             bar = "█" * int(percentage / 2)
             self.console.print(f"  {bucket:12s} {count:5d} {bar}")
 
@@ -386,6 +384,7 @@ async def monitor_example():
 
             # Simulate different outcomes
             import random
+
             outcome = random.choice(["success", "blocked", "failed"])
 
             if outcome == "success":

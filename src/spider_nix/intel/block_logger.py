@@ -24,10 +24,10 @@ BLOCK_STATUSES = {400, 401, 403, 407, 429, 503, 511}
 
 # Response header keys that identify anti-bot vendors
 ANTIBOT_HEADER_KEYS = {
-    "cf-ray",           # Cloudflare
-    "x-datadome",       # DataDome
-    "x-px-uuid",        # PerimeterX
-    "x-recaptcha",      # reCAPTCHA
+    "cf-ray",  # Cloudflare
+    "x-datadome",  # DataDome
+    "x-px-uuid",  # PerimeterX
+    "x-recaptcha",  # reCAPTCHA
     "x-akamai-edgescape",
     "x-kasada-status",
 }
@@ -38,12 +38,12 @@ class BlockTelemetry:
     url: str
     status: int
     response_headers: dict[str, str]
-    response_body_snippet: str          # first 500 chars
-    screenshot_b64: str | None          # PNG as base64, or None if unavailable
+    response_body_snippet: str  # first 500 chars
+    screenshot_b64: str | None  # PNG as base64, or None if unavailable
     console_errors: list[str]
-    network_log: list[dict[str, Any]]   # requests fired before block
-    timing: dict[str, float]            # tls_handshake_ms, ttfb_ms, dom_ready_ms
-    antibot_vendor: str | None          # detected vendor if any
+    network_log: list[dict[str, Any]]  # requests fired before block
+    timing: dict[str, float]  # tls_handshake_ms, ttfb_ms, dom_ready_ms
+    antibot_vendor: str | None  # detected vendor if any
     js_detection_signals: dict[str, Any] = field(default_factory=dict)
 
 
@@ -116,12 +116,14 @@ class BlockLogger:
             self._console_errors.append(f"[{msg.type}] {msg.text}")
 
     def _on_request(self, req: Request) -> None:
-        self._network_log.append({
-            "url": req.url,
-            "method": req.method,
-            "resource_type": req.resource_type,
-            "ts_offset_ms": round((time.monotonic() - self._page_start_ts) * 1000, 1),
-        })
+        self._network_log.append(
+            {
+                "url": req.url,
+                "method": req.method,
+                "resource_type": req.resource_type,
+                "ts_offset_ms": round((time.monotonic() - self._page_start_ts) * 1000, 1),
+            }
+        )
 
     def _on_dom_ready(self) -> None:
         self._dom_ready_ts = time.monotonic()
@@ -163,7 +165,9 @@ class BlockLogger:
                 resp.request.timing.get("responseStart", 0)
                 - resp.request.timing.get("requestStart", 0),
                 1,
-            ) if hasattr(resp.request, "timing") else -1.0,
+            )
+            if hasattr(resp.request, "timing")
+            else -1.0,
             "dom_ready_ms": dom_ready_ms,
         }
 

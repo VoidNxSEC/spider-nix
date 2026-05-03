@@ -198,7 +198,9 @@ class GraphQLDiscovery:
             if response.status_code == 200:
                 # Check for GraphQL-related content
                 content_lower = response.text.lower()
-                if any(keyword in content_lower for keyword in ["graphql", "graphiql", "playground"]):
+                if any(
+                    keyword in content_lower for keyword in ["graphql", "graphiql", "playground"]
+                ):
                     return GraphQLEndpoint(
                         url=url,
                         introspection_enabled=False,
@@ -235,7 +237,9 @@ class GraphQLDiscovery:
 
             # Extract types
             if "types" in schema:
-                endpoint.types = [t["name"] for t in schema["types"] if not t["name"].startswith("__")]
+                endpoint.types = [
+                    t["name"] for t in schema["types"] if not t["name"].startswith("__")
+                ]
 
             # Extract queries
             if "queryType" in schema and schema["queryType"]:
@@ -322,7 +326,7 @@ class FormAnalyzer:
         forms = []
 
         # Simple regex-based form extraction (can use BeautifulSoup for more robust parsing)
-        form_pattern = r'<form[^>]*>(.*?)</form>'
+        form_pattern = r"<form[^>]*>(.*?)</form>"
         form_matches = re.finditer(form_pattern, html, re.IGNORECASE | re.DOTALL)
 
         for match in form_matches:
@@ -355,9 +359,7 @@ class FormAnalyzer:
             return None
 
         # Detect CAPTCHA
-        has_captcha = any(
-            indicator in form_html.lower() for indicator in self.CAPTCHA_INDICATORS
-        )
+        has_captcha = any(indicator in form_html.lower() for indicator in self.CAPTCHA_INDICATORS)
 
         # Detect file upload
         has_file_upload = 'type="file"' in form_html.lower()
@@ -391,13 +393,13 @@ class FormAnalyzer:
         fields = []
 
         # Extract input fields
-        input_pattern = r'<input[^>]*>'
+        input_pattern = r"<input[^>]*>"
         for match in re.finditer(input_pattern, form_html, re.IGNORECASE):
             input_html = match.group(0)
 
             name_match = re.search(r'name=["\']([^"\']+)["\']', input_html)
             type_match = re.search(r'type=["\']([^"\']+)["\']', input_html)
-            required = 'required' in input_html.lower()
+            required = "required" in input_html.lower()
             placeholder_match = re.search(r'placeholder=["\']([^"\']+)["\']', input_html)
             pattern_match = re.search(r'pattern=["\']([^"\']+)["\']', input_html)
 
@@ -412,11 +414,11 @@ class FormAnalyzer:
                 fields.append(field)
 
         # Extract textarea fields
-        textarea_pattern = r'<textarea[^>]*>(.*?)</textarea>'
+        textarea_pattern = r"<textarea[^>]*>(.*?)</textarea>"
         for match in re.finditer(textarea_pattern, form_html, re.IGNORECASE | re.DOTALL):
             textarea_html = match.group(0)
             name_match = re.search(r'name=["\']([^"\']+)["\']', textarea_html)
-            required = 'required' in textarea_html.lower()
+            required = "required" in textarea_html.lower()
 
             if name_match:
                 field = FormField(
@@ -427,14 +429,14 @@ class FormAnalyzer:
                 fields.append(field)
 
         # Extract select fields
-        select_pattern = r'<select[^>]*>(.*?)</select>'
+        select_pattern = r"<select[^>]*>(.*?)</select>"
         for match in re.finditer(select_pattern, form_html, re.IGNORECASE | re.DOTALL):
             select_html = match.group(0)
             name_match = re.search(r'name=["\']([^"\']+)["\']', select_html)
-            required = 'required' in select_html.lower()
+            required = "required" in select_html.lower()
 
             # Extract options
-            options = re.findall(r'<option[^>]*>([^<]+)</option>', select_html, re.IGNORECASE)
+            options = re.findall(r"<option[^>]*>([^<]+)</option>", select_html, re.IGNORECASE)
 
             if name_match:
                 field = FormField(
@@ -476,7 +478,9 @@ class FormAnalyzer:
 
         return None
 
-    def _calculate_complexity(self, fields: list[FormField], has_captcha: bool, has_file_upload: bool) -> float:
+    def _calculate_complexity(
+        self, fields: list[FormField], has_captcha: bool, has_file_upload: bool
+    ) -> float:
         """Calculate form complexity score (0.0 to 1.0)."""
         score = 0.0
 
@@ -516,12 +520,36 @@ class DirectoryBruteforcer:
     """
 
     DEFAULT_WORDLIST = [
-        "admin", "api", "backup", "config", "dashboard",
-        "dev", "docs", "download", "files", "images",
-        "login", "portal", "private", "public", "static",
-        "test", "tmp", "upload", "user", "v1", "v2",
-        "assets", "cache", "data", "db", "logs",
-        "src", "vendor", "wp-admin", "wp-content",
+        "admin",
+        "api",
+        "backup",
+        "config",
+        "dashboard",
+        "dev",
+        "docs",
+        "download",
+        "files",
+        "images",
+        "login",
+        "portal",
+        "private",
+        "public",
+        "static",
+        "test",
+        "tmp",
+        "upload",
+        "user",
+        "v1",
+        "v2",
+        "assets",
+        "cache",
+        "data",
+        "db",
+        "logs",
+        "src",
+        "vendor",
+        "wp-admin",
+        "wp-content",
     ]
 
     def __init__(self, max_concurrent: int = 10):
@@ -664,7 +692,9 @@ class WellKnownScanner:
                         parsed_data = None
 
                         # Try to parse JSON resources
-                        if resource.endswith(".json") or "json" in response.headers.get("Content-Type", ""):
+                        if resource.endswith(".json") or "json" in response.headers.get(
+                            "Content-Type", ""
+                        ):
                             try:
                                 parsed_data = response.json()
                             except json.JSONDecodeError:

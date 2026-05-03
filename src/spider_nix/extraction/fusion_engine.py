@@ -10,18 +10,13 @@ This is the key innovation that enables CSS-independent web scraping.
 
 from typing import List, Set
 
-from .models import (
-    VisionDetection,
-    DOMElement,
-    FusedElement,
-    BoundingBox
-)
+from .models import VisionDetection, DOMElement, FusedElement, BoundingBox
 
 
 class FusionEngine:
     """
     Vision-DOM fusion using IoU (Intersection over Union) matching.
-    
+
     Algorithm:
     1. For each vision detection:
        a. Find DOM elements with matching type
@@ -29,7 +24,7 @@ class FusionEngine:
        c. If IoU > threshold: FUSED (high confidence)
        d. Else: VISION_ONLY (medium confidence)
     2. Unmatched DOM elements: DOM_ONLY (low confidence)
-    
+
     The fusion creates extractions resilient to CSS changes because:
     - Visual position doesn't change when CSS classes change
     - DOM structure is more stable than CSS class names
@@ -39,7 +34,7 @@ class FusionEngine:
     def __init__(self, iou_threshold: float = 0.5, confidence_weights: dict | None = None):
         """
         Initialize fusion engine.
-        
+
         Args:
             iou_threshold: Minimum IoU to consider elements matched
             confidence_weights: Custom weights for confidence calculation
@@ -47,23 +42,21 @@ class FusionEngine:
         """
         self.iou_threshold = iou_threshold
         self.confidence_weights = confidence_weights or {
-            'vision': 0.6,
-            'iou': 0.3,
-            'type_match': 0.1
+            "vision": 0.6,
+            "iou": 0.3,
+            "type_match": 0.1,
         }
 
     def fuse(
-        self,
-        vision_detections: List[VisionDetection],
-        dom_elements: List[DOMElement]
+        self, vision_detections: List[VisionDetection], dom_elements: List[DOMElement]
     ) -> List[FusedElement]:
         """
         Match vision detections to DOM elements using IoU algorithm.
-        
+
         Args:
             vision_detections: Elements detected by vision model
             dom_elements: Elements extracted from DOM
-            
+
         Returns:
             List of fused elements with confidence scores
         """
@@ -112,8 +105,8 @@ class FusionEngine:
                         "vision_confidence": vision.confidence,
                         "iou": best_iou,
                         "type_match": True,
-                        "matching_method": "iou_spatial"
-                    }
+                        "matching_method": "iou_spatial",
+                    },
                 )
                 matched_dom_indices.add(best_dom_idx)
             else:
@@ -127,8 +120,8 @@ class FusionEngine:
                     fusion_metadata={
                         "vision_confidence": vision.confidence,
                         "reason": "no_dom_match" if best_dom_idx is None else "iou_too_low",
-                        "best_iou": best_iou
-                    }
+                        "best_iou": best_iou,
+                    },
                 )
 
             fused.append(fused_elem)
@@ -144,7 +137,7 @@ class FusionEngine:
                 bounding_box=dom.bounding_box or BoundingBox(0, 0, 0, 0),
                 confidence=0.5,  # Low confidence (no visual confirmation)
                 text_content=dom.text_content,
-                model_id="dom_fallback"
+                model_id="dom_fallback",
             )
 
             fused_elem = FusedElement(
@@ -153,10 +146,7 @@ class FusionEngine:
                 iou_score=0.0,
                 extraction_confidence=0.5,  # Low confidence
                 extraction_method="dom_only",
-                fusion_metadata={
-                    "reason": "no_vision_match",
-                    "dom_selector": dom.css_selector
-                }
+                fusion_metadata={"reason": "no_vision_match", "dom_selector": dom.css_selector},
             )
             fused.append(fused_elem)
 
@@ -165,15 +155,15 @@ class FusionEngine:
     def calculate_iou(self, box1: BoundingBox, box2: BoundingBox) -> float:
         """
         Calculate Intersection over Union (IoU).
-        
+
         IoU measures overlap between two bounding boxes:
         - IoU = Area(Intersection) / Area(Union)
         - Range: 0.0 (no overlap) to 1.0 (perfect overlap)
-        
+
         Args:
             box1: First bounding box
             box2: Second bounding box
-            
+
         Returns:
             IoU score (0.0-1.0)
         """
@@ -203,7 +193,7 @@ class FusionEngine:
     def _types_compatible(self, vision_type: str, dom_element: DOMElement) -> bool:
         """
         Check if vision detection type is compatible with DOM element.
-        
+
         Uses fuzzy matching for better recall:
         - "button" matches: button, input[type=button|submit]
         - "link" matches: a[href]
@@ -212,23 +202,19 @@ class FusionEngine:
         return dom_element.matches_type(vision_type)
 
     def _calculate_confidence(
-        self,
-        vision: VisionDetection,
-        dom: DOMElement,
-        iou: float,
-        type_match: bool
+        self, vision: VisionDetection, dom: DOMElement, iou: float, type_match: bool
     ) -> float:
         """
         Calculate combined confidence score using weighted formula.
-        
+
         Formula:
             confidence = (vision_conf * w1) + (iou * w2) + (type_match * w3)
-        
+
         Where:
             w1 = vision weight (default 0.6) - model confidence
             w2 = iou weight (default 0.3) - spatial correlation
             w3 = type_match weight (default 0.1) - semantic match
-            
+
         Returns:
             Combined confidence (0.0-1.0)
         """
@@ -237,9 +223,9 @@ class FusionEngine:
         type_match_score = 1.0 if type_match else 0.5
 
         confidence = (
-            vision_conf * self.confidence_weights['vision'] +
-            iou_score * self.confidence_weights['iou'] +
-            type_match_score * self.confidence_weights['type_match']
+            vision_conf * self.confidence_weights["vision"]
+            + iou_score * self.confidence_weights["iou"]
+            + type_match_score * self.confidence_weights["type_match"]
         )
 
         return max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
@@ -247,7 +233,7 @@ class FusionEngine:
     def get_fusion_statistics(self, fused_elements: List[FusedElement]) -> dict:
         """
         Calculate fusion statistics for quality assessment.
-        
+
         Returns:
             Dict with metrics: fusion_rate, avg_iou, avg_confidence, etc.
         """
@@ -260,7 +246,7 @@ class FusionEngine:
                 "fusion_rate": 0.0,
                 "avg_iou": 0.0,
                 "avg_confidence": 0.0,
-                "high_confidence_count": 0
+                "high_confidence_count": 0,
             }
 
         fused = [e for e in fused_elements if e.extraction_method == "fused"]
@@ -280,5 +266,5 @@ class FusionEngine:
             "avg_iou": avg_iou,
             "avg_confidence": avg_confidence,
             "high_confidence_count": len(high_conf),
-            "resilient_count": len([e for e in fused_elements if e.is_resilient])
+            "resilient_count": len([e for e in fused_elements if e.is_resilient]),
         }

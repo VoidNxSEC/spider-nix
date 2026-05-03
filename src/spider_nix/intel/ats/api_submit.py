@@ -27,6 +27,7 @@ class SubmitResult:
 
 # ── Greenhouse ────────────────────────────────────────────────────────────────
 
+
 async def greenhouse_api_submit(
     url: str,
     mapping: dict,
@@ -41,7 +42,7 @@ async def greenhouse_api_submit(
 
     Documented at: developers.greenhouse.io/job-board/v1
     """
-    match = re.search(r'greenhouse\.io/([^/]+)/jobs/(\d+)', url)
+    match = re.search(r"greenhouse\.io/([^/]+)/jobs/(\d+)", url)
     if not match:
         return SubmitResult(False, "failed", "Could not parse Greenhouse URL")
 
@@ -82,7 +83,8 @@ async def greenhouse_api_submit(
                 )
             else:
                 return SubmitResult(
-                    False, "failed",
+                    False,
+                    "failed",
                     f"Greenhouse API returned {resp.status_code}: {resp.text[:200]}",
                 )
     except Exception as e:
@@ -90,6 +92,7 @@ async def greenhouse_api_submit(
 
 
 # ── Lever ─────────────────────────────────────────────────────────────────────
+
 
 async def lever_api_submit(
     url: str,
@@ -105,7 +108,7 @@ async def lever_api_submit(
 
     Documented at: github.com/lever/postings-api
     """
-    match = re.search(r'lever\.co/([^/]+)/([a-f0-9-]{36})', url)
+    match = re.search(r"lever\.co/([^/]+)/([a-f0-9-]{36})", url)
     if not match:
         return SubmitResult(False, "failed", "Could not parse Lever URL")
 
@@ -148,7 +151,8 @@ async def lever_api_submit(
                 )
             else:
                 return SubmitResult(
-                    False, "failed",
+                    False,
+                    "failed",
                     f"Lever API returned {resp.status_code}: {resp.text[:200]}",
                 )
     except Exception as e:
@@ -156,6 +160,7 @@ async def lever_api_submit(
 
 
 # ── Ashby ─────────────────────────────────────────────────────────────────────
+
 
 async def ashby_api_submit(
     url: str,
@@ -171,7 +176,7 @@ async def ashby_api_submit(
 
     Requires fetching the application form schema first to get field IDs.
     """
-    match = re.search(r'ashbyhq\.com/([^/]+)/([a-f0-9-]{36})', url)
+    match = re.search(r"ashbyhq\.com/([^/]+)/([a-f0-9-]{36})", url)
     if not match:
         return SubmitResult(False, "failed", "Could not parse Ashby URL")
 
@@ -205,8 +210,8 @@ async def ashby_api_submit(
                         data={"jobPostingId": job_id},
                     )
                     if resume_resp.status_code == 200:
-                        payload["applicationForm"]["resumeFileHandle"] = (
-                            resume_resp.json().get("fileHandle")
+                        payload["applicationForm"]["resumeFileHandle"] = resume_resp.json().get(
+                            "fileHandle"
                         )
 
             resp = await client.post(
@@ -222,7 +227,8 @@ async def ashby_api_submit(
                 )
             else:
                 return SubmitResult(
-                    False, "failed",
+                    False,
+                    "failed",
                     f"Ashby API returned {resp.status_code}: {resp.text[:200]}",
                 )
 
@@ -235,7 +241,9 @@ def _map_ashby_fields(schema: dict, mapping: dict, cover_letter: str) -> list[di
     field_submissions = []
 
     ASHBY_FIELD_ALIASES: dict[str, str] = {
-        "name": mapping.get("full_name", f"{mapping.get('first_name', '')} {mapping.get('last_name', '')}".strip()),
+        "name": mapping.get(
+            "full_name", f"{mapping.get('first_name', '')} {mapping.get('last_name', '')}".strip()
+        ),
         "email": mapping.get("email", ""),
         "phone": mapping.get("phone", ""),
         "linkedin": mapping.get("linkedin_url", ""),
@@ -262,6 +270,7 @@ def _map_ashby_fields(schema: dict, mapping: dict, cover_letter: str) -> list[di
 
 
 # ── Browser fallback ──────────────────────────────────────────────────────────
+
 
 async def browser_submit_headless(
     url: str,

@@ -15,7 +15,13 @@ This module provides active reconnaissance capabilities including:
 """
 
 from .reconnaissance import DNSResolver, WHOISLookup, SubdomainEnumerator
-from .analyzer import ContentAnalyzer, TechnologyDetector, ContactHarvester, APIDiscovery, EnhancedTechStack
+from .analyzer import (
+    ContentAnalyzer,
+    TechnologyDetector,
+    ContactHarvester,
+    APIDiscovery,
+    EnhancedTechStack,
+)
 from .scanner import PortScanner, ServiceDetector
 from .vulnerability import VulnerabilityScanner, SecurityHeadersChecker, CVEMatcher
 from .integrations import ShodanClient, URLScanClient, VirusTotalClient, OSINTAggregator

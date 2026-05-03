@@ -14,9 +14,10 @@ from typing import Literal
 class BoundingBox:
     """
     Normalized bounding box coordinates (0-1 range).
-    
+
     Origin is top-left (0,0), bottom-right is (1,1).
     """
+
     x: float  # Left edge (0 = left, 1 = right)
     y: float  # Top edge (0 = top, 1 = bottom)
     width: float  # Box width
@@ -29,10 +30,10 @@ class BoundingBox:
     def intersects(self, other: "BoundingBox") -> bool:
         """Check if this box intersects with another."""
         return not (
-            self.x + self.width < other.x or
-            other.x + other.width < self.x or
-            self.y + self.height < other.y or
-            other.y + other.height < self.y
+            self.x + self.width < other.x
+            or other.x + other.width < self.x
+            or self.y + self.height < other.y
+            or other.y + other.height < self.y
         )
 
     def iou(self, other: "BoundingBox") -> float:
@@ -66,6 +67,7 @@ class VisionDetection:
 
     Represents visual understanding of page elements independent of DOM/CSS.
     """
+
     element_type: str  # button, link, text, image, input, form, nav, menu
     bounding_box: BoundingBox
     confidence: float  # 0.0-1.0 model confidence
@@ -90,6 +92,7 @@ class DOMElement:
 
     Represents traditional DOM-based element with selectors and attributes.
     """
+
     tag_name: str
     xpath: str
     css_selector: str
@@ -100,7 +103,7 @@ class DOMElement:
     def matches_type(self, element_type: str) -> bool:
         """
         Check if DOM element matches vision detection type.
-        
+
         Maps visual element types to DOM tag names.
         """
         type_map = {
@@ -112,14 +115,14 @@ class DOMElement:
             "nav": ["nav"],
             "menu": ["ul", "ol", "menu"],
         }
-        
+
         tag_lower = self.tag_name.lower()
-        
+
         # Special handling for input types
         if tag_lower == "input" and element_type == "button":
             input_type = self.attributes.get("type", "").lower()
             return input_type in ["submit", "button", "reset"]
-        
+
         return tag_lower in type_map.get(element_type, [])
 
     def is_interactive(self) -> bool:
@@ -136,6 +139,7 @@ class FusedElement:
     Represents the core innovation: combining visual detection with DOM analysis
     for CSS-independent extraction that's resilient to class name changes.
     """
+
     iou_score: float  # Intersection over Union quality (0-1)
     extraction_confidence: float  # Combined confidence score
     vision: VisionDetection | None = None  # None if DOM-only extraction
@@ -155,7 +159,7 @@ class FusedElement:
     def is_resilient(self) -> bool:
         """
         Check if extraction is resilient to CSS changes.
-        
+
         Fused elements with high IoU are resilient because they combine
         visual position (doesn't change) with DOM structure.
         """
@@ -213,9 +217,10 @@ class FusedElement:
 class ExtractionResult:
     """
     Complete extraction result for a page.
-    
+
     Contains all detections, elements, and fusion results with performance metrics.
     """
+
     url: str
     screenshot_path: str
     vision_detections: list[VisionDetection]

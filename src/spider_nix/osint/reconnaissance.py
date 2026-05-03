@@ -71,9 +71,7 @@ class DNSResolver:
         """
         self.nameservers = nameservers or ["8.8.8.8", "1.1.1.1"]  # Google, Cloudflare
         self.timeout = timeout
-        self.resolver = aiodns.DNSResolver(
-            timeout=timeout, nameservers=self.nameservers
-        )
+        self.resolver = aiodns.DNSResolver(timeout=timeout, nameservers=self.nameservers)
 
     async def query_a(self, domain: str) -> list[DNSRecord]:
         """Query A records (IPv4)."""
@@ -227,9 +225,7 @@ class DNSResolver:
     async def reverse_dns(self, ip: str) -> str | None:
         """Perform reverse DNS lookup (PTR record)."""
         try:
-            result = await asyncio.get_event_loop().run_in_executor(
-                None, socket.gethostbyaddr, ip
-            )
+            result = await asyncio.get_event_loop().run_in_executor(None, socket.gethostbyaddr, ip)
             return result[0]  # hostname
         except Exception as e:
             logger.debug(f"Reverse DNS failed for {ip}: {e}")
@@ -252,9 +248,7 @@ class WHOISLookup:
         """
         try:
             # Run blocking whois in executor
-            result = await asyncio.get_event_loop().run_in_executor(
-                None, whois.whois, domain
-            )
+            result = await asyncio.get_event_loop().run_in_executor(None, whois.whois, domain)
 
             # Handle both dict and Domain object responses
             if isinstance(result, dict):
@@ -511,9 +505,7 @@ class SubdomainEnumerator:
         # Filter out None and exceptions
         results = [r for r in found if isinstance(r, SubdomainResult)]
 
-        logger.info(
-            f"Bruteforce found {len(results)}/{len(wordlist)} subdomains for {domain}"
-        )
+        logger.info(f"Bruteforce found {len(results)}/{len(wordlist)} subdomains for {domain}")
         return results
 
     async def enumerate(

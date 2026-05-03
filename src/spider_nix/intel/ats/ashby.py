@@ -15,7 +15,7 @@ from playwright.async_api import Page
 
 async def fetch_job_description(url: str) -> str:
     """Fetch job description via Ashby public API."""
-    match = re.search(r'ashbyhq\.com/([^/]+)/([^/?]+)', url)
+    match = re.search(r"ashbyhq\.com/([^/]+)/([^/?]+)", url)
     if not match:
         return ""
 
@@ -35,7 +35,7 @@ async def fetch_job_description(url: str) -> str:
                 if posting.get("id") == job_id or posting.get("externalLink", "").endswith(job_id):
                     title = posting.get("title", "")
                     desc = posting.get("descriptionPlain", "") or re.sub(
-                        r'<[^>]+>', ' ', posting.get("descriptionHtml", "")
+                        r"<[^>]+>", " ", posting.get("descriptionHtml", "")
                     )
                     return f"{title}\n\n{desc}"
     except Exception:

@@ -106,9 +106,7 @@ class ConfigurationWizard:
         )
 
         config = get_preset(preset_name)
-        self.console.print(
-            f"\n[green]✓[/] Loaded preset: [bold]{preset_name}[/]"
-        )
+        self.console.print(f"\n[green]✓[/] Loaded preset: [bold]{preset_name}[/]")
 
         return config
 

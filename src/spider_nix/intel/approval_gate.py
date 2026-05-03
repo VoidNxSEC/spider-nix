@@ -95,12 +95,14 @@ async def _tui_approval(ctx: ApprovalContext) -> tuple[bool, dict]:
 
         elif choice == "v":
             console.clear()
-            console.print(Panel(
-                cover_letter,
-                title="[bold]Cover Letter[/]",
-                border_style="cyan",
-                padding=(1, 2),
-            ))
+            console.print(
+                Panel(
+                    cover_letter,
+                    title="[bold]Cover Letter[/]",
+                    border_style="cyan",
+                    padding=(1, 2),
+                )
+            )
             Prompt.ask("\n[dim]Press Enter to go back[/]", default="")
 
         elif choice == "e":
@@ -111,7 +113,7 @@ async def _tui_approval(ctx: ApprovalContext) -> tuple[bool, dict]:
             for i, key in enumerate(editable):
                 val = mapping.get(key, cover_letter if key == "cover_letter" else "")
                 preview = str(val)[:60] + "..." if len(str(val)) > 60 else str(val)
-                console.print(f"  [cyan]{i+1:2}.[/] {key:25} [dim]{preview}[/]")
+                console.print(f"  [cyan]{i + 1:2}.[/] {key:25} [dim]{preview}[/]")
 
             field_idx = Prompt.ask("\n[cyan]Field number[/] (or Enter to cancel)", default="")
             if not field_idx.strip():
@@ -142,13 +144,15 @@ async def _tui_approval(ctx: ApprovalContext) -> tuple[bool, dict]:
 def _render_approval_panel(ctx: ApprovalContext, mapping: dict, cover_letter: str) -> None:
     """Render the approval TUI panel."""
     score_color = "green" if ctx.score >= 70 else "yellow" if ctx.score >= 40 else "red"
-    console.print(Panel(
-        f"[bold]{ctx.role}[/] @ [cyan]{ctx.company}[/]  "
-        f"[{score_color}]Score: {ctx.score:.0f}/100[/]  "
-        f"[dim]{ctx.ats_platform} · {ctx.job_url}[/]",
-        border_style=score_color,
-        padding=(0, 1),
-    ))
+    console.print(
+        Panel(
+            f"[bold]{ctx.role}[/] @ [cyan]{ctx.company}[/]  "
+            f"[{score_color}]Score: {ctx.score:.0f}/100[/]  "
+            f"[dim]{ctx.ats_platform} · {ctx.job_url}[/]",
+            border_style=score_color,
+            padding=(0, 1),
+        )
+    )
 
     table = Table(box=box.SIMPLE, padding=(0, 1), show_header=True)
     table.add_column("Field", style="cyan", width=25)
@@ -173,16 +177,17 @@ def _render_approval_panel(ctx: ApprovalContext, mapping: dict, cover_letter: st
 
     if ctx.score_reasons:
         reasons_text = "  ".join(
-            f"[red]✗ {r}[/]" if "DEALBREAKER" in r or "penalty" in r.lower()
-            else f"[green]✓ {r}[/]"
+            f"[red]✗ {r}[/]" if "DEALBREAKER" in r or "penalty" in r.lower() else f"[green]✓ {r}[/]"
             for r in ctx.score_reasons
         )
-        console.print(Panel(
-            reasons_text,
-            title="[dim]Score breakdown[/]",
-            border_style="dim",
-            padding=(0, 1),
-        ))
+        console.print(
+            Panel(
+                reasons_text,
+                title="[dim]Score breakdown[/]",
+                border_style="dim",
+                padding=(0, 1),
+            )
+        )
 
     console.print(
         "\n  [bold cyan][s][/] submit  "
@@ -213,11 +218,7 @@ async def _ntfy_notify(ctx: ApprovalContext) -> None:
         return
 
     score_emoji = "🟢" if ctx.score >= 70 else "🟡" if ctx.score >= 40 else "🔴"
-    message = (
-        f"{score_emoji} Score: {ctx.score:.0f}/100\n"
-        f"ATS: {ctx.ats_platform}\n"
-        f"{ctx.job_url}"
-    )
+    message = f"{score_emoji} Score: {ctx.score:.0f}/100\nATS: {ctx.ats_platform}\n{ctx.job_url}"
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:

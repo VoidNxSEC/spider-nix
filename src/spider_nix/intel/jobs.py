@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class JobOpportunity:
     """Detected job opportunity."""
-    
+
     company: str
     url: str
     title: str | None = None
@@ -31,13 +31,9 @@ class JobOpportunity:
 class CareerPageFinder:
     """Find career pages using subdomain discovery and common paths."""
 
-    CAREER_SUBDOMAINS = [
-        "careers", "jobs", "join", "work", "talent", "people", "hr", "recruiting"
-    ]
+    CAREER_SUBDOMAINS = ["careers", "jobs", "join", "work", "talent", "people", "hr", "recruiting"]
 
-    CAREER_PATHS = [
-        "/careers", "/jobs", "/join-us", "/work-with-us", "/about/careers"
-    ]
+    CAREER_PATHS = ["/careers", "/jobs", "/join-us", "/work-with-us", "/about/careers"]
 
     def __init__(self, max_concurrent: int = 10):
         self.max_concurrent = max_concurrent
@@ -46,21 +42,18 @@ class CareerPageFinder:
     async def find(self, domain: str) -> list[str]:
         """
         Find career page URLs for a domain.
-        
+
         Returns:
             List of discovered career page URLs
         """
         urls = set()
-        
+
         # 1. Check subdomains (careers.company.com)
         logger.info(f"Checking career subdomains for {domain}...")
         subdomains = await self.enumerator.enumerate(
-            domain, 
-            use_crt=True, 
-            use_bruteforce=True, 
-            wordlist=self.CAREER_SUBDOMAINS
+            domain, use_crt=True, use_bruteforce=True, wordlist=self.CAREER_SUBDOMAINS
         )
-        
+
         for sub in subdomains:
             if sub.alive:
                 for protocol in ["https", "http"]:
@@ -120,7 +113,7 @@ class JobAnalyzer(ContentAnalyzer):
         """
         # Base content analysis
         stats = self.analyze(result.url, result.content, result.headers)
-        
+
         # Basic filter: Must have some job keywords
         content_lower = result.content.lower()
         if not any(k in content_lower for k in ["apply", "job", "career", "opening", "position"]):
@@ -128,14 +121,14 @@ class JobAnalyzer(ContentAnalyzer):
 
         # Extract Score signals
         score = 0.0
-        
+
         # 1. Tech Stack Match
         tech_matched = []
         for tech in stats.tech_stack:
             if tech.name in self.TECH_INTEREST:
                 score += self.TECH_INTEREST[tech.name]
                 tech_matched.append(tech.name)
-        
+
         # Also check content for keywords not in TechDetector
         for tech, weight in self.TECH_INTEREST.items():
             if tech not in tech_matched and tech.lower() in content_lower:
@@ -148,8 +141,8 @@ class JobAnalyzer(ContentAnalyzer):
             if level.lower() in content_lower:
                 score += weight
                 detected_seniority = level
-                break # Take the highest match? No, usually highest priority first if ordered.
-                
+                break  # Take the highest match? No, usually highest priority first if ordered.
+
         # 3. Remote Policy
         detected_remote = None
         for policy, weight in self.REMOTE_KEYWORDS.items():
@@ -161,7 +154,7 @@ class JobAnalyzer(ContentAnalyzer):
         # 4. Salary Extraction (Naïve regex)
         salary_range = self._extract_salary(result.content)
         if salary_range:
-            score += 2 # Bonus for transparent salary
+            score += 2  # Bonus for transparent salary
 
         return JobOpportunity(
             company=self._extract_company(result.url),
@@ -172,20 +165,21 @@ class JobAnalyzer(ContentAnalyzer):
             salary_range=salary_range,
             tech_stack=tech_matched,
             score=score,
-            timestamp=result.timestamp
+            timestamp=result.timestamp,
         )
 
     def _extract_salary(self, content: str) -> str | None:
         """Extract something that looks like a salary range."""
         # e.g. $100k - $150k, €50.000, 100,000 USD
-        match = re.search(r'[\$€£]\s?\d{2,3}[kK]?\s?-\s?[\$€£]?\s?\d{2,3}[kK]?', content)
+        match = re.search(r"[\$€£]\s?\d{2,3}[kK]?\s?-\s?[\$€£]?\s?\d{2,3}[kK]?", content)
         return match.group(0) if match else None
 
     def _extract_company(self, url: str) -> str:
         """Extract company name from domain."""
         from urllib.parse import urlparse
+
         domain = urlparse(url).netloc
-        parts = domain.split('.')
+        parts = domain.split(".")
         if len(parts) >= 2:
-            return parts[-2].title() # google.com -> Google
+            return parts[-2].title()  # google.com -> Google
         return domain

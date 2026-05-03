@@ -15,7 +15,7 @@ from .models import DOMElement, BoundingBox
 class DOMAnalyzer:
     """
     Parallel HTML/DOM analysis with position calculation.
-    
+
     Uses lxml for fast, structured DOM parsing.
     Calculates element positions via Playwright's getBoundingClientRect().
     """
@@ -32,13 +32,13 @@ class DOMAnalyzer:
     ) -> List[DOMElement]:
         """
         Extract all interactive elements from DOM with positions.
-        
+
         Args:
             html_content: Raw HTML string
             page_handle: Playwright page (optional, for position data)
             viewport_width: Viewport width for normalization
             viewport_height: Viewport height for normalization
-            
+
         Returns:
             List of DOM elements with bounding boxes
         """
@@ -77,10 +77,7 @@ class DOMAnalyzer:
                     bbox = None
                     if page_handle:
                         bbox = await self._get_element_position(
-                            page_handle,
-                            css_selector,
-                            viewport_width,
-                            viewport_height
+                            page_handle, css_selector, viewport_width, viewport_height
                         )
 
                     element = DOMElement(
@@ -89,7 +86,7 @@ class DOMAnalyzer:
                         tag_name=tag,
                         text_content=text,
                         attributes=attrs,
-                        bounding_box=bbox
+                        bounding_box=bbox,
                     )
                     elements.append(element)
 
@@ -102,22 +99,22 @@ class DOMAnalyzer:
     def _generate_css_selector(self, node, tree) -> str:
         """
         Generate unique CSS selector for element.
-        
+
         Priority: ID > unique class > data-testid > nth-child path
         """
         # Check for ID (most unique)
-        if node.get('id'):
-            element_id = node.get('id')
+        if node.get("id"):
+            element_id = node.get("id")
             # Escape special characters in ID
-            escaped_id = element_id.replace(':', '\\:').replace('.', '\\.')
+            escaped_id = element_id.replace(":", "\\:").replace(".", "\\.")
             return f"#{escaped_id}"
 
         # Check for data-testid (common in modern apps)
-        if node.get('data-testid'):
+        if node.get("data-testid"):
             return f"[data-testid='{node.get('data-testid')}']"
 
         # Check for unique class
-        classes = node.get('class', '').split()
+        classes = node.get("class", "").split()
         for cls in classes:
             if cls:
                 # Test if class is unique
@@ -132,7 +129,7 @@ class DOMAnalyzer:
     def _generate_nth_child_path(self, node) -> str:
         """
         Generate nth-child CSS path (guaranteed unique but fragile).
-        
+
         Example: body > div:nth-child(1) > main:nth-child(2) > button:nth-child(3)
         """
         path = []
@@ -141,27 +138,23 @@ class DOMAnalyzer:
         while current.getparent() is not None:
             parent = current.getparent()
             siblings = [n for n in parent if n.tag == current.tag]
-            
+
             if len(siblings) > 1:
                 index = siblings.index(current) + 1
                 path.insert(0, f"{current.tag}:nth-child({index})")
             else:
                 path.insert(0, current.tag)
-            
+
             current = parent
 
         return " > ".join(path)
 
     async def _get_element_position(
-        self,
-        page,
-        css_selector: str,
-        viewport_width: int,
-        viewport_height: int
+        self, page, css_selector: str, viewport_width: int, viewport_height: int
     ) -> Optional[BoundingBox]:
         """
         Get element position using Playwright's getBoundingClientRect().
-        
+
         Returns normalized bounding box (0-1 coordinates).
         """
         try:
@@ -177,10 +170,10 @@ class DOMAnalyzer:
 
             # Normalize to 0-1 coordinates
             return BoundingBox(
-                x=box['x'] / viewport_width,
-                y=box['y'] / viewport_height,
-                width=box['width'] / viewport_width,
-                height=box['height'] / viewport_height
+                x=box["x"] / viewport_width,
+                y=box["y"] / viewport_height,
+                width=box["width"] / viewport_width,
+                height=box["height"] / viewport_height,
             )
 
         except Exception:
@@ -188,14 +181,11 @@ class DOMAnalyzer:
             return None
 
     async def get_all_clickable_elements(
-        self,
-        page,
-        viewport_width: int = 1920,
-        viewport_height: int = 1080
+        self, page, viewport_width: int = 1920, viewport_height: int = 1080
     ) -> List[DOMElement]:
         """
         Alternative: Get all clickable elements via JS query.
-        
+
         Uses document.querySelectorAll for elements with:
         - onclick handler
         - cursor: pointer
@@ -232,32 +222,32 @@ class DOMAnalyzer:
 
         try:
             result = await page.evaluate(js_query)
-            
+
             elements = []
             for item in result:
                 bbox = BoundingBox(
-                    x=item['bbox']['x'] / viewport_width,
-                    y=item['bbox']['y'] / viewport_height,
-                    width=item['bbox']['width'] / viewport_width,
-                    height=item['bbox']['height'] / viewport_height
+                    x=item["bbox"]["x"] / viewport_width,
+                    y=item["bbox"]["y"] / viewport_height,
+                    width=item["bbox"]["width"] / viewport_width,
+                    height=item["bbox"]["height"] / viewport_height,
                 )
 
                 # Generate CSS selector from ID or class
-                if item['id']:
+                if item["id"]:
                     css_selector = f"#{item['id']}"
-                elif item['className']:
-                    classes = item['className'].split()[0] if item['className'] else ''
-                    css_selector = f"{item['tag']}.{classes}" if classes else item['tag']
+                elif item["className"]:
+                    classes = item["className"].split()[0] if item["className"] else ""
+                    css_selector = f"{item['tag']}.{classes}" if classes else item["tag"]
                 else:
-                    css_selector = item['tag']
+                    css_selector = item["tag"]
 
                 element = DOMElement(
                     xpath=f"//{item['tag']}",  # Simplified XPath
                     css_selector=css_selector,
-                    tag_name=item['tag'],
-                    text_content=item['text'],
-                    attributes={'id': item['id'], 'class': item['className']},
-                    bounding_box=bbox
+                    tag_name=item["tag"],
+                    text_content=item["text"],
+                    attributes={"id": item["id"], "class": item["className"]},
+                    bounding_box=bbox,
                 )
                 elements.append(element)
 
