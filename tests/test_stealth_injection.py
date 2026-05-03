@@ -38,13 +38,13 @@ async def stealth_page():
 
 # ── webdriver hidden ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_webdriver_is_undefined(stealth_page):
     """navigator.webdriver must be undefined after stealth injection."""
     page, _ = stealth_page
     val = await page.evaluate("() => navigator.webdriver")
-    assert val is None or val is False or val == "undefined", \
-        f"navigator.webdriver leaked: {val!r}"
+    assert val is None or val is False or val == "undefined", f"navigator.webdriver leaked: {val!r}"
 
 
 @pytest.mark.asyncio
@@ -59,11 +59,13 @@ async def test_webdriver_descriptor_not_enumerable(stealth_page):
         }
     """)
     if desc is not None:
-        assert desc["enumerable"] is False, \
+        assert desc["enumerable"] is False, (
             "webdriver descriptor is enumerable — visible to bot probes"
+        )
 
 
 # ── CDP/cdc_ markers removed ──────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_no_cdc_markers(stealth_page):
@@ -76,6 +78,7 @@ async def test_no_cdc_markers(stealth_page):
 
 
 # ── permissions API looks native ─────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_permissions_query_looks_native(stealth_page):
@@ -91,11 +94,11 @@ async def test_permissions_query_looks_native(stealth_page):
             }
         }
     """)
-    assert "native code" in result, \
-        f"permissions.query.toString() reveals patch: {result!r}"
+    assert "native code" in result, f"permissions.query.toString() reveals patch: {result!r}"
 
 
 # ── fingerprint values are realistic ─────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_hardware_concurrency_is_realistic(stealth_page):
@@ -130,11 +133,13 @@ async def test_webgl_vendor_matches_fingerprint(stealth_page):
         }
     """)
     if reported is not None:
-        assert reported == injected_vendor, \
+        assert reported == injected_vendor, (
             f"WebGL vendor mismatch: injected={injected_vendor!r} reported={reported!r}"
+        )
 
 
 # ── outer dimensions not zero ─────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_outer_dimensions_not_zero(stealth_page):

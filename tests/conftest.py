@@ -2,6 +2,7 @@ import pytest
 import asyncio
 from unittest.mock import MagicMock
 
+
 @pytest.fixture
 def mock_aioresponse():
     with pytest.raises(ImportError):
@@ -9,6 +10,7 @@ def mock_aioresponse():
     # If we had aioresponses, we would use it here.
     # For now, we will rely on unittest.mock
     pass
+
 
 @pytest.fixture
 def mock_response():

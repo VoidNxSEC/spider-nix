@@ -9,6 +9,7 @@ from spider_nix.intel.job_discovery import JobDiscovery
 
 # ── Discovery ──────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_remoteok_fetch_and_filter(mock_profile):
     mock_response = MagicMock()
@@ -97,6 +98,7 @@ def test_detect_remote_policy(mock_profile):
 
 # ── Email classification ────────────────────────────────────────────────────────
 
+
 def test_classify_rejection():
     cls, conf = _classify_email(
         subject="Your application to Acme",
@@ -143,32 +145,43 @@ def test_classify_unknown():
 
 
 def test_extract_company_from_name():
-    company = _extract_company('Cloudflare Recruiting <noreply@greenhouse.io>', '')
+    company = _extract_company("Cloudflare Recruiting <noreply@greenhouse.io>", "")
     assert company == "Cloudflare Recruiting"
 
 
 def test_extract_company_from_domain():
-    company = _extract_company('<noreply@stripe.com>', '')
+    company = _extract_company("<noreply@stripe.com>", "")
     assert company is not None
     assert "stripe" in company.lower()
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def mock_profile():
     from spider_nix.intel.profile import (
-        Experience, PersonalInfo, Preferences, Profile,
+        Experience,
+        PersonalInfo,
+        Preferences,
+        Profile,
     )
+
     profile = Profile(
         personal=PersonalInfo(
-            name="Test User", email="test@test.com", phone="+55",
-            location="Brazil", linkedin="linkedin.com/in/test",
-            github="github.com/test", website="test.com",
+            name="Test User",
+            email="test@test.com",
+            phone="+55",
+            location="Brazil",
+            linkedin="linkedin.com/in/test",
+            github="github.com/test",
+            website="test.com",
             timezone="America/Bahia",
         ),
         current_experience=Experience(
-            title="Security Architect", company="voidnxlabs", start="2024-03",
+            title="Security Architect",
+            company="voidnxlabs",
+            start="2024-03",
         ),
         primary_skills=["Rust", "NixOS", "eBPF", "Security Architecture"],
         secondary_skills=["Python", "Kubernetes"],
@@ -183,11 +196,15 @@ def mock_profile():
         llm_api_url="http://localhost:9000",
         llm_model="mistral",
     )
-    setattr(profile, '_discovery_cfg', {
-        'sources': ['remoteok', 'companies'],
-        'keywords': ['security architect', 'platform engineer', 'nixos', 'rust'],
-        'min_score': 40.0,
-        'interval_hours': 4,
-        'companies': [],
-    })
+    setattr(
+        profile,
+        "_discovery_cfg",
+        {
+            "sources": ["remoteok", "companies"],
+            "keywords": ["security architect", "platform engineer", "nixos", "rust"],
+            "min_score": 40.0,
+            "interval_hours": 4,
+            "companies": [],
+        },
+    )
     return profile

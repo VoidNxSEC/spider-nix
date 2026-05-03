@@ -17,7 +17,7 @@ class TestFailureClassifierCore:
             status_code=200,
             response_headers={"content-type": "text/html"},
             response_body="<html><body>Page content here that is long enough</body></html>",
-            response_time_ms=150.0
+            response_time_ms=150.0,
         )
 
         assert result.failure_class == FailureClass.SUCCESS
@@ -30,7 +30,7 @@ class TestFailureClassifierCore:
             status_code=429,
             response_headers={"retry-after": "60"},
             response_body="Too Many Requests",
-            response_time_ms=50.0
+            response_time_ms=50.0,
         )
 
         assert result.failure_class == FailureClass.RATE_LIMIT
@@ -43,7 +43,7 @@ class TestFailureClassifierCore:
             status_code=503,
             response_headers={},
             response_body="Rate limit exceeded. Please try again later.",
-            response_time_ms=100.0
+            response_time_ms=100.0,
         )
 
         assert result.failure_class == FailureClass.RATE_LIMIT
@@ -54,7 +54,7 @@ class TestFailureClassifierCore:
             status_code=403,
             response_headers={},
             response_body='<html><div class="g-recaptcha"></div></html>',
-            response_time_ms=200.0
+            response_time_ms=200.0,
         )
 
         assert result.failure_class == FailureClass.CAPTCHA
@@ -67,7 +67,7 @@ class TestFailureClassifierCore:
             status_code=403,
             response_headers={},
             response_body='<html><div class="h-captcha" data-sitekey="xxx"></div></html>',
-            response_time_ms=200.0
+            response_time_ms=200.0,
         )
 
         assert result.failure_class == FailureClass.CAPTCHA
@@ -79,7 +79,7 @@ class TestFailureClassifierCore:
             status_code=403,
             response_headers={},
             response_body="Access denied. Automated browser detected.",
-            response_time_ms=80.0
+            response_time_ms=80.0,
         )
 
         assert result.failure_class == FailureClass.FINGERPRINT_DETECTED
@@ -91,7 +91,7 @@ class TestFailureClassifierCore:
             status_code=403,
             response_headers={},
             response_body="Your IP address has been blocked.",
-            response_time_ms=50.0
+            response_time_ms=50.0,
         )
 
         assert result.failure_class == FailureClass.IP_BLOCKED
@@ -105,7 +105,7 @@ class TestFailureClassifierCore:
             response_headers={},
             response_body="",
             response_time_ms=30000.0,
-            exception=TimeoutError("Connection timed out")
+            exception=TimeoutError("Connection timed out"),
         )
 
         assert result.failure_class == FailureClass.TIMEOUT
@@ -117,7 +117,7 @@ class TestFailureClassifierCore:
             status_code=500,
             response_headers={},
             response_body="Internal Server Error",
-            response_time_ms=200.0
+            response_time_ms=200.0,
         )
 
         assert result.failure_class == FailureClass.SERVER_ERROR
@@ -129,7 +129,7 @@ class TestFailureClassifierCore:
             status_code=502,
             response_headers={},
             response_body="Bad Gateway",
-            response_time_ms=100.0
+            response_time_ms=100.0,
         )
 
         assert result.failure_class == FailureClass.SERVER_ERROR
@@ -141,7 +141,7 @@ class TestFailureClassifierCore:
             response_headers={},
             response_body="",
             response_time_ms=0.0,
-            exception=ConnectionError("Connection refused")
+            exception=ConnectionError("Connection refused"),
         )
 
         assert result.failure_class == FailureClass.NETWORK_ERROR
@@ -158,10 +158,7 @@ class TestEdgeCases:
     def test_none_body_handling(self):
         """Test handling of None response body."""
         result = self.classifier.classify(
-            status_code=200,
-            response_headers={},
-            response_body=None,
-            response_time_ms=50.0
+            status_code=200, response_headers={}, response_body=None, response_time_ms=50.0
         )
 
         # Should handle gracefully
@@ -174,7 +171,7 @@ class TestEdgeCases:
             status_code=200,
             response_headers=None,
             response_body="Success content here",
-            response_time_ms=50.0
+            response_time_ms=50.0,
         )
 
         # Should handle gracefully
@@ -183,10 +180,7 @@ class TestEdgeCases:
     def test_empty_body(self):
         """Test empty response body."""
         result = self.classifier.classify(
-            status_code=200,
-            response_headers={},
-            response_body="",
-            response_time_ms=50.0
+            status_code=200, response_headers={}, response_body="", response_time_ms=50.0
         )
 
         # Empty body might be soft block or success
@@ -206,7 +200,7 @@ class TestPriorityOrder:
             status_code=503,
             response_headers={},
             response_body="Service temporarily unavailable. Rate limit exceeded.",
-            response_time_ms=100.0
+            response_time_ms=100.0,
         )
 
         assert result.failure_class == FailureClass.RATE_LIMIT
@@ -217,7 +211,7 @@ class TestPriorityOrder:
             status_code=403,
             response_headers={},
             response_body="Please solve the CAPTCHA to continue. reCAPTCHA.",
-            response_time_ms=200.0
+            response_time_ms=200.0,
         )
 
         assert result.failure_class == FailureClass.CAPTCHA
@@ -228,7 +222,7 @@ class TestPriorityOrder:
             status_code=403,
             response_headers={},
             response_body="Your IP has been blocked due to suspicious activity.",
-            response_time_ms=50.0
+            response_time_ms=50.0,
         )
 
         assert result.failure_class == FailureClass.IP_BLOCKED

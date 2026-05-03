@@ -56,6 +56,7 @@ async def page(browser):
 
 # ── human_type ────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_human_type_basic_text(page):
     """Typed text must appear verbatim in the field."""
@@ -67,8 +68,9 @@ async def test_human_type_basic_text(page):
 @pytest.mark.asyncio
 async def test_human_type_email_with_at_pause(page):
     """Email address must be typed correctly including the @ symbol."""
-    await human_type(page, "#email", "marcos@voidnxlabs.io",
-                     wpm=100, typo_rate=0.0, pause_after_at=True)
+    await human_type(
+        page, "#email", "marcos@voidnxlabs.io", wpm=100, typo_rate=0.0, pause_after_at=True
+    )
     value = await page.input_value("#email")
     assert value == "marcos@voidnxlabs.io"
 
@@ -96,6 +98,7 @@ async def test_human_type_textarea(page):
 async def test_human_type_timing_is_nonzero(page):
     """Typing should not be instantaneous — must take measurable time."""
     import time
+
     text = "Hello"
     t0 = time.monotonic()
     await human_type(page, "#name", text, wpm=60, typo_rate=0.0)
@@ -105,6 +108,7 @@ async def test_human_type_timing_is_nonzero(page):
 
 
 # ── human_move_to ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_human_move_to_element_handle(page):
@@ -153,6 +157,7 @@ async def test_human_move_to_missing_element_does_not_raise(page):
 
 
 # ── human_scroll ──────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_human_scroll_down_moves_page(page):

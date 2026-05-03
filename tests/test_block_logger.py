@@ -40,14 +40,18 @@ async def page(browser):
 
 # ── blocked response detection ────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_block_logger_detects_403(page):
     """BlockLogger must detect a 403 and populate latest telemetry."""
-    await page.route("**/target", lambda route: route.fulfill(
-        status=403,
-        headers={"content-type": "text/html", "cf-ray": "abc123"},
-        body="<html><body>Access Denied</body></html>",
-    ))
+    await page.route(
+        "**/target",
+        lambda route: route.fulfill(
+            status=403,
+            headers={"content-type": "text/html", "cf-ray": "abc123"},
+            body="<html><body>Access Denied</body></html>",
+        ),
+    )
 
     async with BlockLogger(page) as bl:
         await page.goto("http://localhost/target")
@@ -62,11 +66,14 @@ async def test_block_logger_detects_403(page):
 @pytest.mark.asyncio
 async def test_block_logger_detects_429(page):
     """BlockLogger must detect a 429 rate-limit response."""
-    await page.route("**/rate", lambda route: route.fulfill(
-        status=429,
-        headers={"content-type": "application/json", "retry-after": "60"},
-        body='{"error": "Too Many Requests"}',
-    ))
+    await page.route(
+        "**/rate",
+        lambda route: route.fulfill(
+            status=429,
+            headers={"content-type": "application/json", "retry-after": "60"},
+            body='{"error": "Too Many Requests"}',
+        ),
+    )
 
     async with BlockLogger(page) as bl:
         await page.goto("http://localhost/rate")
@@ -79,11 +86,14 @@ async def test_block_logger_detects_429(page):
 @pytest.mark.asyncio
 async def test_block_logger_vendor_from_header(page):
     """antibot_vendor must be populated when a known vendor header is present."""
-    await page.route("**/blocked", lambda route: route.fulfill(
-        status=403,
-        headers={"content-type": "text/html", "x-datadome": "check"},
-        body="blocked",
-    ))
+    await page.route(
+        "**/blocked",
+        lambda route: route.fulfill(
+            status=403,
+            headers={"content-type": "text/html", "x-datadome": "check"},
+            body="blocked",
+        ),
+    )
 
     async with BlockLogger(page) as bl:
         await page.goto("http://localhost/blocked")
@@ -95,10 +105,13 @@ async def test_block_logger_vendor_from_header(page):
 @pytest.mark.asyncio
 async def test_block_logger_no_block_on_200(page):
     """BlockLogger must NOT flag 200 OK as blocked."""
-    await page.route("**/ok", lambda route: route.fulfill(
-        status=200,
-        body="<html>OK</html>",
-    ))
+    await page.route(
+        "**/ok",
+        lambda route: route.fulfill(
+            status=200,
+            body="<html>OK</html>",
+        ),
+    )
 
     async with BlockLogger(page) as bl:
         await page.goto("http://localhost/ok")
@@ -110,10 +123,13 @@ async def test_block_logger_no_block_on_200(page):
 @pytest.mark.asyncio
 async def test_block_logger_captures_console_errors(page):
     """Console errors from the page must appear in the telemetry."""
-    await page.route("**/errpage", lambda route: route.fulfill(
-        status=403,
-        body="<html><script>console.error('bot detected');</script></html>",
-    ))
+    await page.route(
+        "**/errpage",
+        lambda route: route.fulfill(
+            status=403,
+            body="<html><script>console.error('bot detected');</script></html>",
+        ),
+    )
 
     async with BlockLogger(page) as bl:
         await page.goto("http://localhost/errpage")
@@ -128,10 +144,13 @@ async def test_block_logger_captures_console_errors(page):
 async def test_block_logger_captures_network_log(page):
     """Network log must contain the blocked URL."""
     target_url = "http://localhost/netlog"
-    await page.route("**/netlog", lambda route: route.fulfill(
-        status=403,
-        body="blocked",
-    ))
+    await page.route(
+        "**/netlog",
+        lambda route: route.fulfill(
+            status=403,
+            body="blocked",
+        ),
+    )
 
     async with BlockLogger(page) as bl:
         await page.goto(target_url)
@@ -145,10 +164,13 @@ async def test_block_logger_captures_network_log(page):
 @pytest.mark.asyncio
 async def test_block_logger_persists_json(page, tmp_path):
     """BlockLogger must write a JSON file when log_dir is provided."""
-    await page.route("**/save", lambda route: route.fulfill(
-        status=403,
-        body="forbidden",
-    ))
+    await page.route(
+        "**/save",
+        lambda route: route.fulfill(
+            status=403,
+            body="forbidden",
+        ),
+    )
 
     async with BlockLogger(page, log_dir=tmp_path) as bl:
         await page.goto("http://localhost/save")
@@ -164,6 +186,7 @@ async def test_block_logger_persists_json(page, tmp_path):
 
 
 # ── BLOCK_STATUSES coverage ───────────────────────────────────────────────────
+
 
 def test_block_statuses_set():
     """BLOCK_STATUSES must include the canonical anti-bot codes."""

@@ -18,7 +18,7 @@ class TestFailureClassification:
             response_headers={"content-type": "text/html"},
             response_body="<html><body>Success</body></html>",
             response_time_ms=150.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.SUCCESS
@@ -31,7 +31,7 @@ class TestFailureClassification:
             response_headers={"retry-after": "60"},
             response_body="Too Many Requests",
             response_time_ms=50.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.RATE_LIMIT
@@ -45,7 +45,7 @@ class TestFailureClassification:
             response_headers={},
             response_body="Rate limit exceeded. Please try again later.",
             response_time_ms=100.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.RATE_LIMIT
@@ -58,7 +58,7 @@ class TestFailureClassification:
             response_headers={},
             response_body='<html><div class="g-recaptcha"></div></html>',
             response_time_ms=200.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.CAPTCHA
@@ -72,7 +72,7 @@ class TestFailureClassification:
             response_headers={},
             response_body='<html><div class="h-captcha"></div></html>',
             response_time_ms=200.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.CAPTCHA
@@ -85,7 +85,7 @@ class TestFailureClassification:
             response_headers={"server": "cloudflare"},
             response_body='<html><div id="cf-challenge-running"></div></html>',
             response_time_ms=100.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.CAPTCHA
@@ -98,7 +98,7 @@ class TestFailureClassification:
             response_headers={},
             response_body="Access denied. Automated browser detected.",
             response_time_ms=80.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.FINGERPRINT_DETECTED
@@ -111,7 +111,7 @@ class TestFailureClassification:
             response_headers={},
             response_body="Your IP address has been blocked.",
             response_time_ms=50.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.IP_BLOCKED
@@ -124,7 +124,7 @@ class TestFailureClassification:
             response_headers=None,
             response_body=None,
             response_time_ms=30000.0,
-            exception=TimeoutError("Connection timed out")
+            exception=TimeoutError("Connection timed out"),
         )
 
         assert result.failure_class == FailureClass.TIMEOUT
@@ -138,7 +138,7 @@ class TestFailureClassification:
             response_headers={},
             response_body="Internal Server Error",
             response_time_ms=200.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class == FailureClass.SERVER_ERROR
@@ -152,7 +152,7 @@ class TestFailureClassification:
             response_headers=None,
             response_body=None,
             response_time_ms=0.0,
-            exception=ConnectionError("Connection refused")
+            exception=ConnectionError("Connection refused"),
         )
 
         assert result.failure_class == FailureClass.NETWORK_ERROR
@@ -165,7 +165,7 @@ class TestFailureClassification:
             response_headers={"content-type": "text/html"},
             response_body="<html><body>Access Denied</body></html>",
             response_time_ms=100.0,
-            exception=None
+            exception=None,
         )
 
         # Should detect soft ban (200 but with "access denied")
@@ -178,7 +178,7 @@ class TestFailureClassification:
             response_headers={},
             response_body="Rate limit exceeded. Please solve CAPTCHA.",
             response_time_ms=100.0,
-            exception=None
+            exception=None,
         )
 
         # Should prioritize 429 (rate limit) over CAPTCHA keywords
@@ -199,7 +199,7 @@ class TestEdgeCases:
             response_headers={},
             response_body=None,
             response_time_ms=50.0,
-            exception=None
+            exception=None,
         )
 
         # Should handle gracefully (might be SUCCESS or UNKNOWN)
@@ -212,7 +212,7 @@ class TestEdgeCases:
             response_headers={},
             response_body="",
             response_time_ms=50.0,
-            exception=None
+            exception=None,
         )
 
         assert result.failure_class in [FailureClass.SUCCESS, FailureClass.UNKNOWN]
@@ -224,7 +224,7 @@ class TestEdgeCases:
             response_headers=None,
             response_body="Success",
             response_time_ms=50.0,
-            exception=None
+            exception=None,
         )
 
         # Should handle gracefully
@@ -237,7 +237,7 @@ class TestEdgeCases:
             response_headers={},
             response_body="<html></html>",
             response_time_ms=25000.0,  # 25 seconds
-            exception=None
+            exception=None,
         )
 
         # Might be classified as SUCCESS or RATE_LIMIT depending on implementation
@@ -258,7 +258,7 @@ class TestConfidenceScores:
             response_headers={"retry-after": "60"},
             response_body="Rate limit",
             response_time_ms=50.0,
-            exception=None
+            exception=None,
         )
 
         assert result.confidence >= 0.9, "Should have high confidence for clear 429"
@@ -270,7 +270,7 @@ class TestConfidenceScores:
             response_headers={},
             response_body="Forbidden",  # Generic, could be many things
             response_time_ms=100.0,
-            exception=None
+            exception=None,
         )
 
         # Confidence should be lower due to ambiguity

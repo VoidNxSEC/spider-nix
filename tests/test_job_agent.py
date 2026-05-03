@@ -116,6 +116,7 @@ def mock_profile():
 
 # ── api_submit tests ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_greenhouse_api_submit_success():
     mock_response = MagicMock()

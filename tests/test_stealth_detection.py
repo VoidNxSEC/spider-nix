@@ -38,21 +38,18 @@ class TestBotDetection:
         """
         url = "https://bot.sannysoft.com"
 
-        result = await crawler.crawl(
-            url,
-            max_pages=1,
-            follow_links=False,
-            screenshot=True
-        )
+        result = await crawler.crawl(url, max_pages=1, follow_links=False, screenshot=True)
 
         content = result[0].content if result else ""
 
         # Critical checks (MUST PASS)
-        assert "WebDriver: false" in content or "webdriver: false" in content, \
+        assert "WebDriver: false" in content or "webdriver: false" in content, (
             "WebDriver property not hidden"
+        )
 
-        assert "Chrome: present" in content or "chrome: true" in content, \
+        assert "Chrome: present" in content or "chrome: true" in content, (
             "Chrome object not present (bot indicator)"
+        )
 
         # Check for automation detection strings (MUST NOT BE PRESENT)
         bot_indicators = [
@@ -64,12 +61,12 @@ class TestBotDetection:
         ]
 
         for indicator in bot_indicators:
-            assert indicator.lower() not in content.lower(), \
-                f"Bot indicator found: {indicator}"
+            assert indicator.lower() not in content.lower(), f"Bot indicator found: {indicator}"
 
         # Permissions API check
-        assert "Permissions: present" in content or "permissions" in content.lower(), \
+        assert "Permissions: present" in content or "permissions" in content.lower(), (
             "Permissions API not spoofed correctly"
+        )
 
         print(f"✓ Sannysoft test PASSED - zero bot indicators detected")
 
@@ -83,22 +80,16 @@ class TestBotDetection:
         """
         url = "https://arh.antoinevastel.com/bots/areyouheadless"
 
-        result = await crawler.crawl(
-            url,
-            max_pages=1,
-            follow_links=False,
-            screenshot=True
-        )
+        result = await crawler.crawl(url, max_pages=1, follow_links=False, screenshot=True)
 
         content = result[0].content if result else ""
 
         # Key detection checks
-        assert "You are not Chrome headless" in content or \
-               "not headless" in content.lower(), \
-               "Detected as headless Chrome"
+        assert "You are not Chrome headless" in content or "not headless" in content.lower(), (
+            "Detected as headless Chrome"
+        )
 
-        assert "automation" not in content.lower(), \
-               "Automation detected"
+        assert "automation" not in content.lower(), "Automation detected"
 
         print(f"✓ Incolumitas test PASSED - not detected as headless")
 
@@ -156,8 +147,9 @@ class TestBotDetection:
 
         # All should be unique (noise injection working)
         unique_fps = len(set(fingerprints))
-        assert unique_fps == 3, \
+        assert unique_fps == 3, (
             f"Canvas fingerprints not varying between sessions (only {unique_fps}/3 unique)"
+        )
 
         print(f"✓ Canvas fingerprint test PASSED - noise injection working")
 
@@ -200,14 +192,15 @@ class TestBotDetection:
 
         # Verify vendor is from our pool
         from spider_nix.stealth import WEBGL_VENDORS
+
         valid_vendors = [v for v, _ in WEBGL_VENDORS]
 
-        assert vendor in valid_vendors, \
-            f"WebGL vendor '{vendor}' not in expected pool"
+        assert vendor in valid_vendors, f"WebGL vendor '{vendor}' not in expected pool"
 
         # Verify renderer looks realistic
-        assert any(keyword in renderer for keyword in ["ANGLE", "NVIDIA", "AMD", "Intel", "Apple"]), \
-            f"WebGL renderer '{renderer}' doesn't look realistic"
+        assert any(
+            keyword in renderer for keyword in ["ANGLE", "NVIDIA", "AMD", "Intel", "Apple"]
+        ), f"WebGL renderer '{renderer}' doesn't look realistic"
 
         print(f"✓ WebGL fingerprint test PASSED - {vendor} / {renderer}")
 
@@ -244,8 +237,7 @@ class TestBotDetection:
         result = await page.locator("#result").text_content()
         await page.close()
 
-        assert result == "CLEAN", \
-            f"CDP markers found: {result}"
+        assert result == "CLEAN", f"CDP markers found: {result}"
 
         print(f"✓ CDP markers cleanup test PASSED")
 
@@ -291,8 +283,9 @@ class TestBotDetection:
         result = await page.locator("#result").text_content()
         await page.close()
 
-        assert result in ["UNDEFINED", "REJECTED", "BLOCKED"], \
+        assert result in ["UNDEFINED", "REJECTED", "BLOCKED"], (
             f"Battery API not properly blocked: {result}"
+        )
 
         print(f"✓ Battery API blocking test PASSED - status: {result}")
 
@@ -321,8 +314,7 @@ class TestBotDetection:
         result = await page.locator("#result").text_content()
         await page.close()
 
-        assert result == "0", \
-            f"Plugins array not empty: {result} plugins found"
+        assert result == "0", f"Plugins array not empty: {result} plugins found"
 
         print(f"✓ Plugins array spoofing test PASSED - 0 plugins")
 
@@ -345,14 +337,11 @@ class TestFingerprintRealism:
             assert 1.0 <= fp["screen"]["pixelRatio"] <= 2.0, "Invalid pixel ratio"
 
             # Hardware checks
-            assert fp["hardwareConcurrency"] in [4, 8, 12, 16, 20, 24], \
-                "Invalid CPU core count"
-            assert fp["deviceMemory"] in [4, 8, 16, 32, 64], \
-                "Invalid device memory"
+            assert fp["hardwareConcurrency"] in [4, 8, 12, 16, 20, 24], "Invalid CPU core count"
+            assert fp["deviceMemory"] in [4, 8, 16, 32, 64], "Invalid device memory"
 
             # Platform checks
-            assert fp["platform"] in ["Win32", "Linux x86_64", "MacIntel"], \
-                "Invalid platform"
+            assert fp["platform"] in ["Win32", "Linux x86_64", "MacIntel"], "Invalid platform"
 
             # WebGL checks
             assert fp["webgl"]["vendor"], "WebGL vendor missing"
@@ -360,10 +349,12 @@ class TestFingerprintRealism:
 
             # Correlation checks (MacBook should have Apple GPU)
             if fp["platform"] == "MacIntel":
-                assert "Apple" in fp["webgl"]["vendor"] or "Intel" in fp["webgl"]["vendor"], \
+                assert "Apple" in fp["webgl"]["vendor"] or "Intel" in fp["webgl"]["vendor"], (
                     f"Mac platform has non-Mac GPU: {fp['webgl']['vendor']}"
-                assert fp["screen"]["pixelRatio"] == 2.0, \
+                )
+                assert fp["screen"]["pixelRatio"] == 2.0, (
                     "Mac should have Retina display (2.0 pixel ratio)"
+                )
 
         print(f"✓ Fingerprint realism test PASSED - 10 samples verified")
 
@@ -377,15 +368,14 @@ class TestFingerprintRealism:
 
         # All should be unique
         unique_noises = len(set(noises))
-        assert unique_noises == 5, \
+        assert unique_noises == 5, (
             f"Noise not varying between sessions (only {unique_noises}/5 unique)"
+        )
 
         # Verify ranges
         for canvas_noise, audio_noise in noises:
-            assert 0.00001 <= canvas_noise <= 0.0001, \
-                f"Canvas noise out of range: {canvas_noise}"
-            assert 0.000001 <= audio_noise <= 0.00002, \
-                f"Audio noise out of range: {audio_noise}"
+            assert 0.00001 <= canvas_noise <= 0.0001, f"Canvas noise out of range: {canvas_noise}"
+            assert 0.000001 <= audio_noise <= 0.00002, f"Audio noise out of range: {audio_noise}"
 
         print(f"✓ Noise variation test PASSED - 5 unique sessions")
 
