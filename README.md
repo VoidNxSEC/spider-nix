@@ -27,14 +27,14 @@ Spider-Nix demonstrates production-ready software engineering practices:
 - **CI/CD Excellence**: Automated testing across Python 3.11-3.13, coverage tracking, parallel job execution
 - **Modern Python**: Async/await throughout, type hints, Pydantic models, httpx/Playwright
 - **DevOps Integration**: NixOS flakes for reproducible environments, pre-commit hooks, Justfile automation
-- **Test-Driven Development**: 63 test cases with comprehensive coverage, pytest-asyncio, matrix testing
-- **Professional Standards**: Ruff linting, mypy type checking, comprehensive documentation
+- **Test-Driven Development**: 183 offline tests passing by default, pytest-asyncio, matrix testing
+- **Professional Standards**: Ruff linting, explicit mypy stable-module gate, comprehensive documentation
 
 ## By The Numbers
 
 ```
-4,638 LOC  │  17 modules  │  63 tests  │  Python 3.11-3.13
-6 OSINT categories  │  20+ integrations  │  4 anti-detection techniques
+183 offline tests  │  19 opt-in integration/slow tests  │  Python 3.11-3.13
+6 OSINT categories  │  Go proxy package  │  Nix flake + legacy nix-build
 ```
 
 ## Features
@@ -155,7 +155,7 @@ spider ci-local
 spider test            # Run tests
 spider test-cov        # Tests with coverage report
 spider check           # Run linters
-spider typecheck       # Run mypy type checking
+spider typecheck       # Run mypy on the CI-stabilized module set
 spider security        # Run security scans
 spider ci-local        # Simulate full CI pipeline
 ```
@@ -163,7 +163,7 @@ spider ci-local        # Simulate full CI pipeline
 ### Testing
 
 ```bash
-# Run all tests
+# Run offline/default tests
 spider test
 
 # Run with coverage
@@ -174,6 +174,9 @@ pytest tests/test_crawler.py
 
 # Run tests matching pattern
 pytest -k "test_dns"
+
+# Run live-network/local-daemon checks explicitly
+pytest -m "integration or slow"
 ```
 
 ## Project Structure
@@ -197,7 +200,7 @@ spider-nix/
 │   │   └── correlator.py      # Entity correlation (454 LOC)
 │   └── intel/
 │       └── jobs.py            # Job intelligence (194 LOC)
-├── tests/                  # 63 test cases (1,123 LOC)
+├── tests/                  # Offline tests plus opt-in slow/integration cases
 ├── .github/workflows/      # CI/CD pipelines
 ├── flake.nix              # Nix development environment
 ├── pyproject.toml         # Python package config

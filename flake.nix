@@ -44,6 +44,7 @@
           lxml
           beautifulsoup4
           pillow
+          defusedxml
 
           # ML & Vision
           scikit-learn
@@ -55,9 +56,11 @@
           pytest
           pytest-asyncio
           pytest-cov
+          pytest-httpx
           ruff
           mypy
           bandit
+          build
           pip
           # safety # Not found in nixpkgs
           # pip-audit # Not found in nixpkgs
@@ -157,7 +160,7 @@ EOF
                 echo "   Run 'rm -rf .venv' to avoid confusion."
             fi
 
-            cat <<EOF
+            cat <<'EOF'
 
    _____       _     _           _   __ _
   / ____|     (_)   | |         | | / /(_)
@@ -168,9 +171,6 @@ EOF
         | |
         |_|   Dev Shell
 
-Python  : $(python --version)
-Just    : $(just --version)
-uv      : $(uv --version)
 Helper  : sp -> spider
 
 Core Commands
@@ -193,12 +193,15 @@ Tips
   spider-help              Compact dev cheat sheet
   TAB on 'spider'          Completion with command descriptions
 EOF
+            echo "Python  : $(python --version)"
+            echo "Just    : $(just --version)"
+            echo "uv      : $(uv --version)"
           '';
         };
 
         packages.default = pkgs.python313Packages.buildPythonApplication {
           pname = "spider-nix";
-          version = "0.1.0";
+          version = "0.2.0";
           format = "pyproject";
 
           src = ./.;
@@ -218,11 +221,11 @@ EOF
 
         packages.spider-network-proxy = pkgs.buildGoModule {
           pname = "spider-network-proxy";
-          version = "0.1.0";
+          version = "0.2.0";
 
           src = ./network;
 
-          vendorHash = null; # Will need to be set after go mod vendor
+          vendorHash = "sha256-+7VzAIUCeBxlU5zVk6xPtzJhWfmtKdccRdTy7fnoIg0=";
 
           meta = with pkgs.lib; {
             description = "Anti-detection HTTP/HTTPS proxy with TLS fingerprinting";
