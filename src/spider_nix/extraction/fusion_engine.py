@@ -8,8 +8,6 @@ to CSS class changes.
 This is the key innovation that enables CSS-independent web scraping.
 """
 
-from typing import List, Set
-
 from .models import (
     VisionDetection,
     DOMElement,
@@ -36,7 +34,11 @@ class FusionEngine:
     - IoU ensures spatial correlation even with minor shifts
     """
 
-    def __init__(self, iou_threshold: float = 0.5, confidence_weights: dict | None = None):
+    def __init__(
+        self,
+        iou_threshold: float = 0.5,
+        confidence_weights: dict[str, float] | None = None,
+    ):
         """
         Initialize fusion engine.
         
@@ -46,7 +48,7 @@ class FusionEngine:
                                (vision_weight, iou_weight, type_match_weight)
         """
         self.iou_threshold = iou_threshold
-        self.confidence_weights = confidence_weights or {
+        self.confidence_weights: dict[str, float] = confidence_weights or {
             'vision': 0.6,
             'iou': 0.3,
             'type_match': 0.1
@@ -54,9 +56,10 @@ class FusionEngine:
 
     def fuse(
         self,
-        vision_detections: List[VisionDetection],
-        dom_elements: List[DOMElement]
-    ) -> List[FusedElement]:
+        vision_detections: list[VisionDetection],
+        dom_elements: list[DOMElement],
+        strategy: str = "greedy",
+    ) -> list[FusedElement]:
         """
         Match vision detections to DOM elements using IoU algorithm.
         
@@ -67,8 +70,11 @@ class FusionEngine:
         Returns:
             List of fused elements with confidence scores
         """
+        if strategy != "greedy":
+            raise ValueError(f"Unsupported fusion strategy: {strategy}")
+
         fused = []
-        matched_dom_indices: Set[int] = set()
+        matched_dom_indices: set[int] = set()
 
         # Phase 1: Match vision → DOM
         for vision in vision_detections:
@@ -98,7 +104,7 @@ class FusionEngine:
                     best_dom_idx = idx
 
             # Create FusedElement based on match quality
-            if best_iou >= self.iou_threshold:
+            if best_iou >= self.iou_threshold and best_match is not None:
                 # FUSED: High confidence extraction
                 fused_elem = FusedElement(
                     vision=vision,
@@ -115,7 +121,8 @@ class FusionEngine:
                         "matching_method": "iou_spatial"
                     }
                 )
-                matched_dom_indices.add(best_dom_idx)
+                if best_dom_idx is not None:
+                    matched_dom_indices.add(best_dom_idx)
             else:
                 # VISION_ONLY: Medium confidence (no DOM match)
                 fused_elem = FusedElement(
@@ -143,7 +150,7 @@ class FusionEngine:
                 element_type=dom.tag_name,
                 bounding_box=dom.bounding_box or BoundingBox(0, 0, 0, 0),
                 confidence=0.5,  # Low confidence (no visual confirmation)
-                text_content=dom.text_content,
+                text=dom.text_content,
                 model_id="dom_fallback"
             )
 
@@ -161,6 +168,17 @@ class FusionEngine:
             fused.append(fused_elem)
 
         return fused
+
+    def filter_high_confidence(
+        self,
+        fused_elements: list[FusedElement],
+        min_confidence: float = 0.7,
+    ) -> list[FusedElement]:
+        """Return fused elements whose extraction confidence meets the threshold."""
+        return [
+            element for element in fused_elements
+            if element.extraction_confidence >= min_confidence
+        ]
 
     def calculate_iou(self, box1: BoundingBox, box2: BoundingBox) -> float:
         """
@@ -209,7 +227,54 @@ class FusionEngine:
         - "link" matches: a[href]
         - "input" matches: input, textarea, select
         """
-        return dom_element.matches_type(vision_type)
+        return self._types_match(vision_type, dom_element.tag_name) or dom_element.matches_type(vision_type)
+
+    def _types_match(self, vision_type: str, dom_type: str) -> bool:
+        """Check whether a vision element type maps to a DOM tag type."""
+        vision = vision_type.lower()
+        dom = dom_type.lower()
+        if vision == dom:
+            return True
+        compatible = {
+            "button": {"button", "input"},
+            "link": {"a"},
+            "input": {"input", "textarea", "select"},
+            "image": {"img", "picture"},
+            "menu": {"ul", "ol", "menu"},
+        }
+        return dom in compatible.get(vision, set())
+
+    def _text_similarity(self, left: str | None, right: str | None) -> float:
+        """Small deterministic text similarity helper for fusion scoring."""
+        left_norm = (left or "").strip().lower()
+        right_norm = (right or "").strip().lower()
+        if not left_norm and not right_norm:
+            return 1.0
+        if not left_norm or not right_norm:
+            return 0.0
+        if left_norm == right_norm:
+            return 1.0
+        if left_norm in right_norm or right_norm in left_norm:
+            return 0.8
+
+        left_tokens = set(left_norm.split())
+        right_tokens = set(right_norm.split())
+        if not left_tokens or not right_tokens:
+            return 0.0
+        return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+
+    def _is_important_element(self, dom_element: DOMElement) -> bool:
+        """Filter out tiny or empty layout-only DOM elements."""
+        if dom_element.bounding_box and dom_element.bounding_box.area() < 0.0005:
+            return False
+        if dom_element.text_content.strip():
+            return True
+        if dom_element.is_interactive():
+            return True
+        return any(
+            attr in dom_element.attributes
+            for attr in ("onclick", "href", "role", "aria-label")
+        )
 
     def _calculate_confidence(
         self,
@@ -244,7 +309,7 @@ class FusionEngine:
 
         return max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
 
-    def get_fusion_statistics(self, fused_elements: List[FusedElement]) -> dict:
+    def get_fusion_statistics(self, fused_elements: list[FusedElement]) -> dict:
         """
         Calculate fusion statistics for quality assessment.
         

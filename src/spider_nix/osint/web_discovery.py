@@ -211,6 +211,11 @@ class GraphQLDiscovery:
 
         return None
 
+    async def _introspect_endpoint(self, url: str) -> GraphQLEndpoint | None:
+        """Backward-compatible helper for direct endpoint introspection."""
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            return await self._test_endpoint(client, url)
+
     def _parse_introspection_response(self, url: str, data: dict) -> GraphQLEndpoint:
         """Parse GraphQL introspection response."""
         endpoint = GraphQLEndpoint(
@@ -276,6 +281,10 @@ class GraphQLDiscovery:
 
         return list(endpoints)
 
+    def _detect_from_html(self, html: str, base_url: str) -> list[str]:
+        """Backward-compatible wrapper for HTML endpoint detection."""
+        return self._search_html_for_graphql(base_url, html)
+
 
 # ============================================================================
 # Form Analyzer
@@ -340,12 +349,9 @@ class FormAnalyzer:
         method_match = re.search(r'method=["\']([^"\']+)["\']', form_html, re.IGNORECASE)
 
         action = action_match.group(1) if action_match else ""
-        method = method_match.group(1).upper() if method_match else "GET"
+        method = method_match.group(1).lower() if method_match else "get"
 
-        # Convert relative action to absolute URL
-        if action:
-            action = urljoin(page_url, action)
-        else:
+        if not action:
             action = page_url
 
         # Extract fields
@@ -460,7 +466,7 @@ class FormAnalyzer:
                 scores[purpose] = score
 
         if scores:
-            return max(scores, key=scores.get)
+            return max(scores.items(), key=lambda item: item[1])[0]
 
         return None
 
@@ -539,6 +545,7 @@ class DirectoryBruteforcer:
         base_url: str,
         wordlist: list[str] | None = None,
         extensions: list[str] | None = None,
+        max_concurrent: int | None = None,
     ) -> list[DirectoryEntry]:
         """
         Brute-force directories and files.
@@ -553,6 +560,9 @@ class DirectoryBruteforcer:
         """
         wordlist = wordlist or self.DEFAULT_WORDLIST
         extensions = extensions or []
+        if max_concurrent is not None and max_concurrent != self.max_concurrent:
+            self.max_concurrent = max_concurrent
+            self._semaphore = asyncio.Semaphore(max_concurrent)
 
         # Build list of paths to test
         paths_to_test = []
@@ -560,7 +570,6 @@ class DirectoryBruteforcer:
         for word in wordlist:
             # Test as directory
             paths_to_test.append(f"/{word}")
-            paths_to_test.append(f"/{word}/")
 
             # Test with extensions
             for ext in extensions:
@@ -672,7 +681,7 @@ class WellKnownScanner:
 
                         found_resources.append(
                             WellKnownResource(
-                                path=f"/.well-known/{resource}",
+                                path=resource,
                                 exists=True,
                                 content=content[:1000],  # Truncate to 1000 chars
                                 parsed_data=parsed_data,

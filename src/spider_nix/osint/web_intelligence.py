@@ -8,13 +8,13 @@ and web archive integration for comprehensive competitive intelligence.
 import json
 import logging
 import re
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 from urllib.parse import urljoin, urlparse
 
 import httpx
+from defusedxml import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
@@ -338,13 +338,13 @@ class SitemapParser:
                 logger.warning(f"Sitemap {sitemap_url} returned {response.status_code}")
                 return [], []
 
-            return self._parse_xml(sitemap_url, response.text, client, recursive)
+            return await self._parse_xml(sitemap_url, response.text, client, recursive)
 
         except httpx.RequestError as e:
             logger.error(f"Error fetching sitemap {sitemap_url}: {e}")
             return [], []
 
-    def _parse_xml(
+    async def _parse_xml(
         self,
         source_url: str,
         xml_content: str,
@@ -367,17 +367,16 @@ class SitemapParser:
             if root.tag == "sitemapindex":
                 for sitemap in root.findall("sitemap"):
                     loc = sitemap.find("loc")
-                    if loc is not None:
+                    if loc is not None and loc.text:
                         nested_sitemaps.append(loc.text)
 
                 # Recursively parse nested sitemaps
                 if recursive and client:
-                    import asyncio
-
                     for nested_url in nested_sitemaps:
-                        loop = asyncio.get_event_loop()
-                        nested_urls, more_nested = loop.run_until_complete(
-                            self._parse_sitemap(client, nested_url, recursive)
+                        nested_urls, more_nested = await self._parse_sitemap(
+                            client,
+                            nested_url,
+                            recursive,
                         )
                         urls.extend(nested_urls)
                         nested_sitemaps.extend(more_nested)
@@ -386,7 +385,7 @@ class SitemapParser:
             elif root.tag == "urlset":
                 for url_elem in root.findall("url"):
                     loc = url_elem.find("loc")
-                    if loc is None:
+                    if loc is None or not loc.text:
                         continue
 
                     lastmod_elem = url_elem.find("lastmod")
@@ -395,7 +394,7 @@ class SitemapParser:
 
                     # Parse lastmod
                     lastmod = None
-                    if lastmod_elem is not None:
+                    if lastmod_elem is not None and lastmod_elem.text:
                         try:
                             lastmod = datetime.fromisoformat(lastmod_elem.text.replace("Z", "+00:00"))
                         except ValueError:
@@ -403,7 +402,7 @@ class SitemapParser:
 
                     # Parse priority
                     priority = None
-                    if priority_elem is not None:
+                    if priority_elem is not None and priority_elem.text:
                         try:
                             priority = float(priority_elem.text)
                         except ValueError:
@@ -426,7 +425,7 @@ class SitemapParser:
 
     def _analyze_patterns(self, urls: list[str]) -> dict[str, int]:
         """Analyze URL patterns to identify site structure."""
-        patterns = {}
+        patterns: dict[str, int] = {}
 
         for url in urls:
             parsed = urlparse(url)
@@ -492,12 +491,12 @@ class RobotsTxtAnalyzer:
 
     def _parse_robots(self, url: str, content: str) -> RobotsAnalysis:
         """Parse robots.txt content."""
-        rules = []
-        sitemaps = []
+        rules: list[RobotsRule] = []
+        sitemaps: list[str] = []
         crawl_delay = None
         current_agent = None
-        current_disallowed = []
-        current_allowed = []
+        current_disallowed: list[str] = []
+        current_allowed: list[str] = []
 
         for line in content.splitlines():
             line = line.strip()
@@ -629,14 +628,29 @@ class WebArchiveClient:
                     logger.warning(f"Wayback API returned {response.status_code}")
                     return ArchiveTimeline(url=url, snapshot_count=0, snapshots=[])
 
-                return self._parse_cdx_response(url, response.text)
+                timeline = self._parse_cdx_response(url, response.text)
+                if from_date:
+                    timeline.snapshots = [
+                        snapshot for snapshot in timeline.snapshots
+                        if snapshot.timestamp >= from_date
+                    ]
+                    timeline.snapshot_count = len(timeline.snapshots)
+                    timeline.first_seen = min(
+                        (s.timestamp for s in timeline.snapshots),
+                        default=None,
+                    )
+                    timeline.last_seen = max(
+                        (s.timestamp for s in timeline.snapshots),
+                        default=None,
+                    )
+                return timeline
 
         except httpx.RequestError as e:
             logger.error(f"Error querying Wayback API: {e}")
             return ArchiveTimeline(url=url, snapshot_count=0, snapshots=[])
 
     def _parse_cdx_response(self, url: str, response_text: str) -> ArchiveTimeline:
-        """Parse CDX API JSON response."""
+        """Parse CDX API response in JSON or plain-text CDX format."""
         try:
             data = json.loads(response_text)
 
@@ -690,9 +704,49 @@ class WebArchiveClient:
                 snapshots=snapshots,
             )
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse CDX JSON: {e}")
-            return ArchiveTimeline(url=url, snapshot_count=0, snapshots=[])
+        except json.JSONDecodeError:
+            snapshots = [
+                snapshot
+                for line in response_text.splitlines()
+                if (snapshot := self._parse_cdx_line(line)) is not None
+            ]
+            first_seen = min((s.timestamp for s in snapshots), default=None)
+            last_seen = max((s.timestamp for s in snapshots), default=None)
+            return ArchiveTimeline(
+                url=url,
+                first_seen=first_seen,
+                last_seen=last_seen,
+                snapshot_count=len(snapshots),
+                snapshots=snapshots,
+            )
+
+    def _parse_cdx_line(self, line: str) -> ArchiveSnapshot | None:
+        """Parse one plain-text CDX row."""
+        parts = line.split()
+        if len(parts) < 6:
+            return None
+        try:
+            timestamp_str = parts[1]
+            original_url = parts[2]
+            status_code = int(parts[4])
+            digest = parts[5]
+            timestamp = datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
+            return ArchiveSnapshot(
+                url=original_url,
+                timestamp=timestamp,
+                archive_url=self._build_archive_url(timestamp, original_url),
+                status_code=status_code,
+                digest=digest,
+            )
+        except (ValueError, IndexError):
+            return None
+
+    def _build_archive_url(self, timestamp: datetime, url: str) -> str:
+        """Build a Wayback Machine snapshot URL."""
+        return self.WAYBACK_SNAPSHOT.format(
+            timestamp=timestamp.strftime("%Y%m%d%H%M%S"),
+            url=url,
+        )
 
     async def get_snapshot(self, url: str, timestamp: datetime) -> str | None:
         """
@@ -713,7 +767,7 @@ class WebArchiveClient:
                 response = await client.get(archive_url)
 
                 if response.status_code == 200:
-                    return response.text
+                    return str(response.text)
 
         except httpx.RequestError as e:
             logger.error(f"Error fetching snapshot: {e}")

@@ -194,7 +194,7 @@ class VisionClient:
                     element_type=element_type,
                     bounding_box=BoundingBox(x=x, y=y, width=w, height=h),
                     confidence=0.85,  # Default confidence (model-dependent)
-                    text_content=text if text else None,
+                    text=text if text else None,
                     ocr_confidence=0.9 if text else None,
                     model_id=model_id,
                     attributes={}

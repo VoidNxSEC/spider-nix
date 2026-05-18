@@ -70,7 +70,7 @@ class StealthEngine:
     
     def get_user_agent(self) -> str:
         """Get random realistic user agent."""
-        return self._ua.random
+        return str(self._ua.random)
     
     def get_headers(self) -> dict[str, str]:
         """Generate realistic request headers."""
@@ -223,15 +223,20 @@ class StealthEngine:
         const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
         const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
         const canvasNoise = {canvas_noise};
+        const canvasNoiseSeed = Math.floor(canvasNoise * 1000000000);
+        function deterministicCanvasNoise(index, channel) {{
+            const mixed = (canvasNoiseSeed ^ ((index + 1) * 1103515245) ^ (channel * 12345)) >>> 0;
+            return (mixed % 7) - 3;
+        }}
 
         HTMLCanvasElement.prototype.toDataURL = markPatched(function() {{
             const context = this.getContext('2d');
             if (context) {{
                 const imageData = context.getImageData(0, 0, this.width, this.height);
                 for (let i = 0; i < imageData.data.length; i += 4) {{
-                    imageData.data[i] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
-                    imageData.data[i + 1] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
-                    imageData.data[i + 2] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
+                    imageData.data[i] += deterministicCanvasNoise(i, 0);
+                    imageData.data[i + 1] += deterministicCanvasNoise(i, 1);
+                    imageData.data[i + 2] += deterministicCanvasNoise(i, 2);
                 }}
                 context.putImageData(imageData, 0, 0);
             }}
@@ -241,9 +246,9 @@ class StealthEngine:
         CanvasRenderingContext2D.prototype.getImageData = markPatched(function() {{
             const imageData = originalGetImageData.apply(this, arguments);
             for (let i = 0; i < imageData.data.length; i += 4) {{
-                imageData.data[i] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
-                imageData.data[i + 1] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
-                imageData.data[i + 2] += Math.floor((Math.random() - 0.5) * canvasNoise * 255);
+                imageData.data[i] += deterministicCanvasNoise(i, 0);
+                imageData.data[i + 1] += deterministicCanvasNoise(i, 1);
+                imageData.data[i + 2] += deterministicCanvasNoise(i, 2);
             }}
             return imageData;
         }});

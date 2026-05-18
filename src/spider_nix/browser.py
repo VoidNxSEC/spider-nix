@@ -20,7 +20,7 @@ class BrowserCrawler:
         self,
         config: CrawlerConfig | None = None,
         proxy_rotator: ProxyRotator | None = None,
-        use_network_proxy: bool = True,
+        use_network_proxy: bool | None = None,
         network_proxy_url: str = "http://127.0.0.1:8080",
     ):
         self.config = config or CrawlerConfig(use_browser=True)
@@ -29,9 +29,57 @@ class BrowserCrawler:
             strategy=self.config.proxy.rotation_strategy,
         )
         self.stealth = StealthEngine()
-        self.use_network_proxy = use_network_proxy
+        self.use_network_proxy = (
+            self.config.network.use_network_proxy
+            if use_network_proxy is None
+            else use_network_proxy
+        )
         self.network_proxy_url = network_proxy_url
         self._results: list[CrawlResult] = []
+
+    async def _create_page(self):
+        """Create a standalone Playwright page with SpiderNix stealth applied."""
+        from playwright.async_api import async_playwright
+
+        playwright = await async_playwright().start()
+        browser_type = getattr(playwright, self.config.browser_type)
+        launch_args = {
+            "headless": self.config.headless,
+            "args": [
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+            ],
+        }
+
+        if self.use_network_proxy:
+            launch_args["proxy"] = {"server": self.network_proxy_url}
+
+        browser = await browser_type.launch(**launch_args)
+        fingerprint = self.stealth.get_fingerprint()
+        context = await browser.new_context(
+            viewport={
+                "width": fingerprint["screen"]["width"],
+                "height": fingerprint["screen"]["height"],
+            },
+            user_agent=self.stealth.get_user_agent(),
+            locale=fingerprint["language"],
+            timezone_id=fingerprint["timezone"],
+            ignore_https_errors=True,
+        )
+        await context.add_init_script(self.stealth.get_playwright_stealth_script())
+        page = await context.new_page()
+
+        original_close = page.close
+
+        async def close_with_resources(*args, **kwargs):
+            await original_close(*args, **kwargs)
+            await context.close()
+            await browser.close()
+            await playwright.stop()
+
+        page.close = close_with_resources
+        return page
     
     async def crawl(
         self,
@@ -178,7 +226,7 @@ class BrowserCrawler:
             content = await page.content()
             elapsed_ms = (time.monotonic() - start) * 1000
             
-            metadata = {
+            metadata: dict[str, object] = {
                 "elapsed_ms": elapsed_ms,
                 "browser": self.config.browser_type,
                 "rendered": True,

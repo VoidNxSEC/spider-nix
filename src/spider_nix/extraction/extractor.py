@@ -9,6 +9,7 @@ Orchestrates the complete extraction flow:
 """
 
 import asyncio
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional
@@ -83,7 +84,13 @@ class MultimodalExtractor:
 
         # Step 1: Capture screenshot
         if screenshot_path is None:
-            screenshot_path = Path(f"/tmp/screenshot_{int(time.time())}.png")
+            screenshot_file = tempfile.NamedTemporaryFile(
+                prefix="spider-nix-screenshot-",
+                suffix=".png",
+                delete=False,
+            )
+            screenshot_file.close()
+            screenshot_path = Path(screenshot_file.name)
 
         await page.screenshot(path=str(screenshot_path))
         html_content = await page.content()

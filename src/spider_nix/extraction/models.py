@@ -145,6 +145,11 @@ class FusedElement:
     timestamp: datetime = field(default_factory=datetime.now)
 
     @property
+    def strategy(self) -> str:
+        """Backward-compatible alias for extraction method."""
+        return self.extraction_method
+
+    @property
     def selector(self) -> str | None:
         """Get best CSS/XPath selector (prefer CSS > XPath > None)."""
         if self.dom:

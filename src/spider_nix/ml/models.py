@@ -15,6 +15,7 @@ class FailureClass(str, Enum):
     IP_BLOCKED = "ip_blocked"
     TIMEOUT = "timeout"
     SERVER_ERROR = "server_error"
+    NETWORK_ERROR = "network_error"
     UNKNOWN = "unknown"
 
 
