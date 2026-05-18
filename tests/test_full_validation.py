@@ -21,6 +21,7 @@ class TestFullIntegration:
     """Test full OSINT workflow integration."""
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_reconnaissance_workflow(self):
         """Test complete reconnaissance workflow."""
         target = "example.com"
@@ -125,6 +126,7 @@ class TestFullIntegration:
         assert "digraph OSINT" in dot_export
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_end_to_end_workflow(self):
         """Test end-to-end OSINT workflow."""
         target = "example.com"

@@ -9,6 +9,8 @@ from spider_nix.osint import DNSResolver, WHOISLookup, SubdomainEnumerator
 class TestDNSResolver:
     """Test DNS resolver functionality."""
 
+    pytestmark = pytest.mark.integration
+
     @pytest.mark.asyncio
     async def test_query_a_google(self):
         """Test A record query for google.com."""
@@ -87,6 +89,8 @@ class TestDNSResolver:
 class TestWHOISLookup:
     """Test WHOIS lookup functionality."""
 
+    pytestmark = pytest.mark.integration
+
     @pytest.mark.asyncio
     async def test_whois_google(self):
         """Test WHOIS lookup for google.com."""
@@ -142,6 +146,7 @@ class TestSubdomainEnumerator:
                     assert any(result.subdomain == "www.google.com" for result in results)
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_bruteforce_common_subdomains(self):
         """Test DNS bruteforce with small wordlist."""
         async with SubdomainEnumerator() as enumerator:
@@ -208,6 +213,7 @@ class TestSubdomainEnumerator:
                     assert all(result.source == "crt.sh" for result in results)
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_enumerate_bruteforce_only(self):
         """Test enumeration with only bruteforce."""
         async with SubdomainEnumerator() as enumerator:
@@ -226,6 +232,8 @@ class TestSubdomainEnumerator:
 
 class TestDataClasses:
     """Test data class structures."""
+
+    pytestmark = pytest.mark.integration
 
     @pytest.mark.asyncio
     async def test_dns_record_structure(self):

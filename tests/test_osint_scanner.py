@@ -8,6 +8,7 @@ from spider_nix.osint.scanner import PortScanner, ServiceDetector, COMMON_PORTS
 class TestPortScanner:
     """Test port scanner functionality."""
 
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_scan_tcp_port_open(self):
         """Test scanning an open TCP port (SSH on localhost)."""
