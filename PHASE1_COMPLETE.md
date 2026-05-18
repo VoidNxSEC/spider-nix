@@ -1,8 +1,10 @@
-# Phase 1 MVP - Implementation Complete ✅
+# Phase 1 MVP - Historical Implementation Notes
 
-**Status**: 20/24 tasks (83% complete)
-**Data**: 2026-01-23
-**Ready for**: Mass testing phase
+**Original status**: 20/24 tasks (83% complete)
+**Original date**: 2026-01-23
+**Current validation snapshot**: see `TEST_REPORT.md`
+
+> This file is retained as a historical Phase 1 handoff. The current CI baseline is offline-first: 183 default tests passing, 19 slow/integration checks opt-in, Ruff/Bandit/typecheck green, Go proxy build green, and Nix package builds green.
 
 ---
 

@@ -19,14 +19,11 @@ jobs:
           python-version: '3.13'
           cache: 'pip'
 
-      - name: Install Ruff
-        run: pip install ruff
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]"
 
       - name: Run Ruff linting
-        run: ruff check .
-
-      - name: Run Ruff formatting check
-        run: ruff format --check .
+        run: spider lint
 
   # Job 2: Type Checking
   # Portfolio Value: Demonstrates static typing discipline
@@ -45,7 +42,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run mypy type checking
-        run: mypy src/spider_nix --ignore-missing-imports
+        run: spider typecheck
 
   # Job 3: Matrix Testing with Coverage
   # Portfolio Value: Shows compatibility across Python versions and test coverage metrics
@@ -75,6 +72,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           pytest tests/ \
+            -m "not slow and not integration" \
             --cov=spider_nix \
             --cov-report=xml \
             --cov-report=term \

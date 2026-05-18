@@ -23,7 +23,13 @@ let
     # Dev
     pytest
     pytest-asyncio
+    pytest-cov
+    pytest-httpx
     ruff
+    mypy
+    bandit
+    build
+    defusedxml
     pip
   ]);
 in
@@ -33,7 +39,7 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
     pythonEnv
     playwright-driver.browsers
-    nodePackages.npm
+    nodejs_24
     just
     uv
   ];

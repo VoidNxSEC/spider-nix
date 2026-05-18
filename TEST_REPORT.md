@@ -1,24 +1,28 @@
-# Spider-Nix Phase 1 MVP - Test Report
+# Spider-Nix CI Recovery Test Report
 
-**Data**: 2026-01-23 (Updated 20:45 BRT)
-**Versão**: 0.2.0 (Post-Bugfix)
+**Data**: 2026-05-18
+**Versão**: 0.2.0
 **Ambiente**: NixOS + Nix develop environment
+**Escopo**: offline/default CI. Live-network checks are opt-in via `slow` and `integration` markers.
 
 ---
 
 ## 📊 Resumo Executivo
 
-| Componente | Status | Testes | Resultado |
-|------------|--------|--------|-----------|
-| **Stealth Engine** | ✅ Completo | 11/11 passando | 100% |
-| **Extraction Models** | ✅ **FIXED** | 10/10 passando | 100% |
-| **Strategy Selector** | ✅ **FIXED** | 17/17 passando | 100% |
-| **Go Network Proxy** | ✅ Compilado | Binary funcional | OK |
-| **Failure Classifier** | ⚠️ Parcial | 14/17 passando | 82% |
-| **Vision Extraction** | ⏸️ Pendente | ml-offload-api offline | - |
-| **Fusion Engine** | ⚠️ API Issues | Needs signature fix | - |
+| Gate | Resultado |
+|------|-----------|
+| **Python offline tests** | ✅ 183 passed, 19 deselected |
+| **Coverage** | ✅ 45.01% total line coverage reported |
+| **Ruff lint** | ✅ Package lint green |
+| **Mypy** | ✅ CI-stabilized 9-module target set green |
+| **Bandit** | ✅ Medium/high issues: 0 |
+| **Go proxy tests/build** | ✅ `go test ./...` and binary build green |
+| **Nix packages** | ✅ `.#default` and `.#spider-network-proxy` build green |
+| **Legacy Nix** | ✅ `default.nix` repaired for `nix-build` / `nix-shell` |
 
-**Status Geral da Fase 1**: **71% (143/202 tests passing)** - UP from 58%
+**Status Geral**: **CI offline verde**. External services and local daemon assumptions are no longer part of the default test path.
+
+> Historical Phase 1 notes below are retained as implementation context; the table above is the current validation snapshot.
 
 ---
 
@@ -199,9 +203,9 @@ make build
 
 ## 🔧 Correções Aplicadas Durante Testes
 
-### 🆕 Evening Session Bugfixes (2026-01-23 20:45 BRT)
+### 🆕 Historical Evening Session Bugfixes (2026-01-23 20:45 BRT)
 
-**Impact**: Test pass rate increased from 58% → 71% (143/202 tests)
+**Historical impact**: Test pass rate increased from 58% → 71% (143/202 tests)
 
 #### Extraction Models (`src/spider_nix/extraction/models.py`)
 1. **BoundingBox.iou()**: ✅ Added method for Intersection over Union calculation

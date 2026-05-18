@@ -23,14 +23,8 @@ jobs:
       - name: Build Nix package
         run: nix build .#default
 
+      - name: Build Go proxy package
+        run: nix build .#spider-network-proxy
+
       - name: Test in Nix devShell
-        run: |
-          nix develop --command bash -c "
-            echo 'Testing development environment...'
-            python --version
-            just --version
-            echo 'Installing package...'
-            just install
-            echo 'Running tests...'
-            pytest tests/ -v --tb=short || true
-          "
+        run: nix develop --command spider ci-local
