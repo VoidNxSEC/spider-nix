@@ -14,11 +14,11 @@
       {
         packages.default = pkgs.buildGoModule {
           pname = "spider-network-proxy";
-          version = "0.1.0";
+          version = "0.2.0";
 
           src = ./.;
 
-          vendorHash = null;  # Will need to be set after go mod vendor
+          vendorHash = "sha256-+7VzAIUCeBxlU5zVk6xPtzJhWfmtKdccRdTy7fnoIg0=";
 
           meta = with pkgs.lib; {
             description = "Anti-detection HTTP/HTTPS proxy with TLS fingerprinting";

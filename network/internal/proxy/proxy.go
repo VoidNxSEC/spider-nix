@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"crypto/tls"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -27,8 +26,7 @@ func NewServer(cfg *config.Config) *Server {
 	proxy.Verbose = false
 
 	fingerprintMgr := tlsmanager.NewFingerprintManager(
-		cfg.TLS.BrowserPool,
-		cfg.TLS.FingerprintRotation,
+		cfg.TLS.ProfileCacheTTL,
 	)
 
 	s := &Server{
@@ -63,8 +61,8 @@ func (s *Server) setupHandlers() {
 		log.Printf("[HTTPS] CONNECT %s", host)
 
 		// Get random fingerprint
-		fp := s.fingerprintMgr.GetFingerprint()
-		s.fingerprintStats[fp.Name]++
+			fp := s.fingerprintMgr.GetProfileForDomain(host)
+			s.fingerprintStats[fp.Name]++
 
 		log.Printf("[HTTPS] Using fingerprint: %s for %s", fp.Name, host)
 
@@ -84,7 +82,7 @@ func (s *Server) setupHandlers() {
 
 // Start starts the proxy server
 func (s *Server) Start() error {
-	addr := fmt.Sprintf("%s:%d", s.config.Proxy.Listen, s.config.Proxy.Port)
+	addr := s.config.Proxy.HTTPListen
 
 	log.Printf("Starting spider-network-proxy on %s", addr)
 	log.Printf("TLS fingerprint rotation: %v", s.config.TLS.FingerprintRotation)
@@ -98,7 +96,7 @@ func (s *Server) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"requests":            s.requestCount,
 		"fingerprint_stats":   s.fingerprintStats,
-		"fingerprint_manager": s.fingerprintMgr.GetStats(),
+		"profile_cache_ttl_h": s.config.TLS.ProfileCacheTTL,
 	}
 }
 
@@ -122,18 +120,10 @@ func (s *Server) customDialTLS(network, addr string) (net.Conn, error) {
 		InsecureSkipVerify: false,
 	})
 
-	// Upgrade to uTLS
-	uconn, err := s.fingerprintMgr.CreateUTLSConn(tlsConn, host)
-	if err != nil {
-		conn.Close()
+	if err := tlsConn.Handshake(); err != nil {
+		tlsConn.Close()
 		return nil, err
 	}
 
-	// Perform handshake
-	if err := uconn.Handshake(); err != nil {
-		uconn.Close()
-		return nil, err
-	}
-
-	return uconn, nil
+	return tlsConn, nil
 }
