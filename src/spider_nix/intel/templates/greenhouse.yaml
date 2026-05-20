@@ -1,0 +1,156 @@
+# Greenhouse ATS Field Templates
+# https://boards.greenhouse.io/{company}
+
+platform: greenhouse
+url_patterns:
+  - boards.greenhouse.io
+  - greenhouse.io
+
+flags:
+  multi_step: false
+  has_eeo: true
+  has_captcha: false
+  file_upload: true
+  common_labels: true
+
+fields:
+  first_name:
+    - first_name
+    - firstName
+    - firstname
+    - candidate_first_name
+    - candidateFirstName
+    - given_name
+  last_name:
+    - last_name
+    - lastName
+    - lastname
+    - candidate_last_name
+    - candidateLastName
+    - family_name
+  full_name:
+    - full_name
+    - fullName
+    - fullname
+    - name
+  email:
+    - email
+    - candidate_email
+    - email_address
+    - candidateEmail
+    - emailAddress
+  phone:
+    - phone
+    - phone_number
+    - candidate_phone
+    - phoneNumber
+    - candidatePhone
+  location:
+    - location
+    - candidate_location
+    - city
+    - region
+  linkedin_url:
+    - linkedin_url
+    - url_linkedin
+    - linkedin
+    - linkedinUrl
+    - linkedin_profile
+  github_url:
+    - github_url
+    - url_github
+    - github
+    - githubUrl
+    - github_profile
+  portfolio_url:
+    - portfolio_url
+    - url_portfolio
+    - website
+    - portfolioUrl
+    - personal_website
+  resume_path:
+    - resume
+    - resume_upload
+    - upload_resume
+    - attachments[0]
+    - resumeFile
+  cover_letter_text:
+    - cover_letter
+    - cover_letter_text
+    - coverLetter
+    - coverLetterText
+    - message
+    - additional_information
+  salary_expectation:
+    - salary_expectation
+    - desired_salary
+    - desiredSalary
+    - salaryRequirements
+  work_authorization:
+    - work_authorization
+    - authorized_to_work
+    - eligible_to_work
+    - legally_authorized
+  requires_sponsorship:
+    - requires_sponsorship
+    - visa_sponsorship
+    - need_sponsor
+    - requireSponsorship
+  gender:
+    - gender
+    - gender_identity
+    - eeo_gender
+    - gender_identification
+  ethnicity:
+    - ethnicity
+    - race
+    - eeo_ethnicity
+    - hispanic_latino
+    - racial_background
+  veteran_status:
+    - veteran_status
+    - veteran
+    - protected_veteran
+    - veteranStatus
+  disability_status:
+    - disability_status
+    - disability
+    - disabled
+    - disabilityStatus
+  years_experience:
+    - years_experience
+    - years_of_experience
+    - total_experience
+    - yearsExperience
+  current_company:
+    - current_company
+    - current_employer
+    - most_recent_employer
+    - currentCompany
+  current_title:
+    - current_title
+    - current_role
+    - current_position
+    - job_title
+    - currentTitle
+  highest_education:
+    - education
+    - highest_education
+    - education_level
+    - degree_level
+    - educationLevel
+  university:
+    - university
+    - school
+    - college
+    - institution
+  degree:
+    - degree
+    - major
+    - field_of_study
+    - fieldOfStudy
+  graduation_year:
+    - graduation_year
+    - grad_year
+    - year_of_graduation
+    - graduationYear

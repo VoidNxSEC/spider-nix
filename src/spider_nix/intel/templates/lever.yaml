@@ -1,0 +1,135 @@
+# Lever ATS Field Templates
+# https://jobs.lever.co/{company}
+
+platform: lever
+url_patterns:
+  - jobs.lever.co
+
+flags:
+  multi_step: false
+  has_eeo: true
+  has_captcha: false
+  file_upload: true
+  common_labels: false
+
+fields:
+  full_name:
+    - name
+    - fullName
+    - full_name
+    - candidateName
+  first_name:
+    - first_name
+    - firstName
+    - givenName
+  last_name:
+    - last_name
+    - lastName
+    - familyName
+  email:
+    - email
+    - candidateEmail
+    - email_address
+    - emailAddress
+  phone:
+    - phone
+    - phoneNumber
+    - phone_number
+    - mobilePhone
+  location:
+    - location
+    - region
+    - city
+    - office
+  linkedin_url:
+    - linkedin
+    - linkedinUrl
+    - url_linkedin
+    - linkedinProfile
+  github_url:
+    - github
+    - githubUrl
+    - url_github
+    - githubProfile
+  portfolio_url:
+    - portfolio
+    - portfolioUrl
+    - website
+    - personalWebsite
+  resume_path:
+    - resume
+    - cv
+    - resumeUpload
+    - resumeFile
+  cover_letter_text:
+    - coverLetter
+    - cover_letter
+    - additionalInformation
+    - coverLetterText
+  salary_expectation:
+    - salaryExpectation
+    - desiredSalary
+    - salary
+    - compensationAmount
+  work_authorization:
+    - workAuthorization
+    - eligibleToWork
+    - authorizedToWork
+    - rightToWork
+  requires_sponsorship:
+    - requiresSponsorship
+    - visaSponsorship
+    - sponsorshipNeeded
+    - needSponsorship
+  gender:
+    - gender
+    - eeo_gender
+    - genderIdentity
+  ethnicity:
+    - ethnicity
+    - eeo_ethnicity
+    - race
+    - ethnicBackground
+  veteran_status:
+    - veteran
+    - veteranStatus
+    - protectedVeteran
+    - militaryService
+  disability_status:
+    - disability
+    - disabilityStatus
+    - accommodations
+  years_experience:
+    - yearsOfExperience
+    - years_experience
+    - experience
+    - totalYearsExperience
+  current_company:
+    - currentCompany
+    - current_company
+    - mostRecentEmployer
+    - latestCompany
+  current_title:
+    - currentTitle
+    - current_title
+    - mostRecentTitle
+    - latestTitle
+  highest_education:
+    - education
+    - highestDegree
+    - educationLevel
+    - degreeLevel
+  university:
+    - school
+    - university
+    - college
+    - institution
+  degree:
+    - degree
+    - major
+    - fieldOfStudy
+    - areaOfStudy
+  graduation_year:
+    - graduationYear
+    - graduation_year
+    - gradYear

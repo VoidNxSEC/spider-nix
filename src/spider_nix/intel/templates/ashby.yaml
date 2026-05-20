@@ -1,0 +1,130 @@
+# Ashby ATS Field Templates
+# https://jobs.ashbyhq.com/{company}
+
+platform: ashby
+url_patterns:
+  - jobs.ashbyhq.com
+
+flags:
+  multi_step: false
+  has_eeo: true
+  has_captcha: false
+  file_upload: true
+  common_labels: true
+
+fields:
+  first_name:
+    - firstName
+    - first_name
+    - givenName
+    - first_name_input
+  last_name:
+    - lastName
+    - last_name
+    - familyName
+    - surname
+  full_name:
+    - fullName
+    - full_name
+    - name
+    - candidateFullName
+  email:
+    - email
+    - emailAddress
+    - candidateEmail
+    - email_input
+  phone:
+    - phone
+    - phoneNumber
+    - mobilePhone
+    - phone_input
+  location:
+    - location
+    - city
+    - region
+    - currentLocation
+  linkedin_url:
+    - linkedin
+    - linkedinUrl
+    - linkedinProfile
+    - linkedin_input
+  github_url:
+    - github
+    - githubUrl
+    - githubProfile
+    - github_input
+  portfolio_url:
+    - portfolio
+    - portfolioUrl
+    - website
+    - personalSite
+  resume_path:
+    - resume
+    - cv
+    - resumeFile
+    - resume_input
+  cover_letter_text:
+    - coverLetter
+    - coverLetterText
+    - message
+    - coverLetter_input
+  salary_expectation:
+    - salaryExpectation
+    - desiredSalary
+    - compensationExpectation
+  work_authorization:
+    - workAuthorization
+    - authorizedToWork
+    - legalWorkStatus
+  requires_sponsorship:
+    - requiresSponsorship
+    - visaSponsorship
+    - sponsorshipNeeded
+  gender:
+    - gender
+    - genderIdentity
+    - eeo_gender
+  ethnicity:
+    - ethnicity
+    - race
+    - eeo_ethnicity
+    - demographic_ethnicity
+  veteran_status:
+    - veteranStatus
+    - veteran
+    - protectedVeteran
+  disability_status:
+    - disabilityStatus
+    - disability
+    - accommodationNeeded
+  years_experience:
+    - yearsOfExperience
+    - yearsExperience
+    - totalExperience
+    - workExperience
+  current_company:
+    - currentCompany
+    - mostRecentCompany
+    - employer
+  current_title:
+    - currentTitle
+    - mostRecentTitle
+    - jobTitle
+  highest_education:
+    - highestEducation
+    - educationLevel
+    - highestDegree
+  university:
+    - university
+    - school
+    - college
+    - educationInstitution
+  degree:
+    - degree
+    - major
+    - fieldOfStudy
+    - areaOfStudy
+  graduation_year:
+    - graduationYear
+    - yearOfGraduation
+    - gradYear

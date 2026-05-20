@@ -1,6 +1,12 @@
 """Job Intelligence — professional job hunt toolkit."""
 
-from spider_nix.intel.form_filler import AutoFillProfile, FormAutoFiller, autofill_url
+from spider_nix.intel.form_filler import (
+    AutoFillProfile,
+    FormAutoFiller,
+    LiveFormFiller,
+    autofill_url,
+    live_fill_url,
+)
 from spider_nix.intel.job_ats import (
     AshbyScraper,
     ATSScraperResult,
@@ -38,6 +44,7 @@ from spider_nix.intel.jobs import (
     extract_seniority,
     extract_tech_stack,
 )
+from spider_nix.intel.resume_parser import ResumeData, parse_resume
 
 __all__ = [
     # Data models
@@ -73,10 +80,15 @@ __all__ = [
     "JobSeekerProfile",
     "JobScorer",
     "match_jobs",
+    # Resume parsing
+    "ResumeData",
+    "parse_resume",
     # Form auto-filler
     "AutoFillProfile",
     "FormAutoFiller",
+    "LiveFormFiller",
     "autofill_url",
+    "live_fill_url",
     # Storage & tracking
     "JobStorage",
     "ApplicationTracker",
