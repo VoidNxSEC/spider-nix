@@ -8,16 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Complete CI/CD pipeline with GitHub Actions
-  - Main CI workflow with Python 3.11-3.13 matrix testing
-  - Security scanning workflow (Bandit, Safety, pip-audit, Gitleaks)
-  - Nix build validation workflow
-- Code coverage tracking with pytest-cov and Codecov integration
-- Pre-commit hooks for automated quality gates
-  - Ruff formatting and linting
-  - Mypy type checking
-  - Bandit security scanning
-  - Secret detection
+
+**Professional Job Intelligence System (v0.3.0)**
+
+- **Multi-source job search**: Greenhouse, Lever, Ashby ATS scrapers + RemoteOK, WeWorkRemotely, HackerNews job boards
+- **Smart matching engine**: 5-dimension scoring (skills 40%, seniority 20%, location 15%, salary 15%, title 10%)
+- **Application pipeline tracker**: Full CRM with status transitions (saved→applied→phone_screen→technical→onsite→offer→accepted)
+- **Auto-fill system**: Analyze HTML forms, match fields to profile with confidence scoring (0-100%)
+- **Live interactive mode**: Playwright-based browser automation with visual feedback (green/yellow/red borders)
+- **ATS template knowledge base**: External YAML templates for Greenhouse, Lever, Ashby (25 fields each, 150+ name variations)
+- **Resume parser**: Extract name, email, phone, skills, experience, education from PDF/DOCX/TXT
+- **Web GUI**: FastAPI + Alpine.js + Tailwind dashboard with 4 pages (Hunt, Pipeline, Auto-fill, Profile)
+- **CLI improvements**: `spider job` subcommand group, `spider status` dashboard, shell completion
+- **214 tests** (183 offline + 19 integration), zero breaking changes
+
+### Changed
+
+- Rewrote `intel/jobs.py` with professional data models (30+ fields, enums, Salary, CompanyProfile)
+- Added confidence-based field matching replacing naive keyword matching
+- Grouped job commands under `spider job` subcommand (hunt, track, profile, fill)
+- Updated dev shell banner with new commands
 - Type checking with mypy configuration
 - Enhanced Justfile with new commands:
   - `just hooks-install` - Install pre-commit hooks
