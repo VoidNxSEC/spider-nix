@@ -12,27 +12,46 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
-from .config import CrawlerConfig, AGGRESSIVE_CONFIG, get_preset, list_presets
-from .crawler import SpiderNix
 from .browser import BrowserCrawler
+from .config import AGGRESSIVE_CONFIG, CrawlerConfig, get_preset, list_presets
+from .crawler import SpiderNix
+from .intel import (
+    ApplicationTracker,
+    CareerPageDiscoverer,
+    HNHiringScraper,
+    JobOpportunity,
+    JobScorer,
+    JobSeekerProfile,
+    JobStorage,
+    PreferredRemote,
+    RemoteOKScraper,
+    WeWorkRemotelyScraper,
+    discover_and_scrape,
+    match_jobs,
+    scrape_all_boards,
+)
+from .intel.form_filler import AutoFillProfile, FormAutoFiller, autofill_url
+from .intel.jobs import ApplicationStatus, JobSource, RemotePolicy, Seniority
 from .monitor import CrawlMonitor
+from .osint import (
+    DirectoryBruteforcer,
+    DNSResolver,
+    FormAnalyzer,
+    GraphQLDiscovery,
+    PortScanner,
+    RobotsTxtAnalyzer,
+    SitemapParser,
+    StructuredDataExtractor,
+    SubdomainEnumerator,
+    TechnologyDetector,
+    WebArchiveClient,
+    WellKnownScanner,
+    WHOISLookup,
+)
 from .proxy import ProxyRotator, fetch_public_proxies
 from .report import generate_report
 from .storage import get_storage
 from .wizard import run_wizard
-from .osint import DNSResolver, WHOISLookup, SubdomainEnumerator, PortScanner
-from .osint import (
-    GraphQLDiscovery,
-    StructuredDataExtractor,
-    TechnologyDetector,
-    SitemapParser,
-    RobotsTxtAnalyzer,
-    FormAnalyzer,
-    DirectoryBruteforcer,
-    WellKnownScanner,
-    WebArchiveClient,
-)
-from .intel.jobs import CareerPageFinder, JobAnalyzer
 
 app = typer.Typer(
     name="spider",
@@ -83,58 +102,62 @@ def crawl(
     follow: bool = typer.Option(False, "--follow", "-F", help="Follow links on pages"),
     proxy_file: Optional[Path] = typer.Option(None, "--proxy-file", help="File with proxy list"),
     concurrent: int = typer.Option(10, "--concurrent", "-c", help="Concurrent requests"),
-    aggressive: bool = typer.Option(False, "--aggressive", "-a", help="Aggressive mode (fast, no delays)"),
+    aggressive: bool = typer.Option(
+        False, "--aggressive", "-a", help="Aggressive mode (fast, no delays)"
+    ),
     timeout: int = typer.Option(30, "--timeout", "-t", help="Request timeout in seconds"),
 ):
     """Crawl a URL and extract data."""
-    
+
     console.print(f"\n[bold]🕷️ SpiderNix v{__version__}[/]\n")
-    
+
     # Build config
     if aggressive:
         config = AGGRESSIVE_CONFIG.model_copy()
     else:
         config = CrawlerConfig()
-    
+
     config.max_requests_per_crawl = pages
     config.max_concurrent_requests = concurrent
     config.request_timeout_ms = timeout * 1000
     config.use_browser = browser
     config.headless = headless
-    
+
     # Load proxies if provided
     proxy_rotator = None
     if proxy_file:
         proxy_rotator = ProxyRotator.from_file(str(proxy_file))
         console.print(f"[cyan]Loaded {len(proxy_rotator.proxies)} proxies[/]")
-    
+
     # Setup storage
     storage = None
     if output:
         storage = get_storage(output, format)
         console.print(f"[cyan]Output: {output} ({format})[/]")
-    
+
     console.print(f"[cyan]Target: {url}[/]")
-    console.print(f"[cyan]Mode: {'Browser' if browser else 'HTTP'} | Pages: {pages} | Concurrent: {concurrent}[/]\n")
-    
+    console.print(
+        f"[cyan]Mode: {'Browser' if browser else 'HTTP'} | Pages: {pages} | Concurrent: {concurrent}[/]\n"
+    )
+
     # Run crawler
     async def run():
         if browser:
             crawler = BrowserCrawler(config=config, proxy_rotator=proxy_rotator)
         else:
             crawler = SpiderNix(config=config, proxy_rotator=proxy_rotator)
-        
+
         results = await crawler.crawl(
             url,
             max_pages=pages,
             follow_links=follow,
             storage=storage,
         )
-        
+
         return results
-    
+
     results = asyncio.run(run())
-    
+
     # Summary
     console.print(f"\n[bold green]✓ Crawled {len(results)} pages[/]")
     if output:
@@ -144,21 +167,21 @@ def crawl(
 @app.command()
 def proxy_fetch():
     """Fetch public proxies (unreliable, for testing only)."""
-    
+
     console.print("[yellow]Fetching public proxies...[/]")
-    
+
     async def run():
         return await fetch_public_proxies()
-    
+
     proxies = asyncio.run(run())
-    
+
     console.print(f"[green]Found {len(proxies)} proxies[/]\n")
-    
+
     # Save to file
     with open("proxies.txt", "w") as f:
         for proxy in proxies:
             f.write(proxy + "\n")
-    
+
     console.print("[green]Saved to: proxies.txt[/]")
 
 
@@ -168,16 +191,16 @@ def proxy_stats(
     test: bool = typer.Option(False, "--test", "-t", help="Test proxies"),
 ):
     """Show proxy statistics."""
-    
+
     rotator = ProxyRotator.from_file(str(proxy_file))
-    
+
     console.print(f"[bold]Proxies: {len(rotator.proxies)}[/]\n")
-    
+
     if test:
         console.print("[yellow]Testing proxies...[/]\n")
-        
+
         import httpx
-        
+
         async def test_proxy(proxy: str) -> tuple[str, bool, float]:
             try:
                 async with httpx.AsyncClient(
@@ -185,29 +208,30 @@ def proxy_stats(
                     timeout=10,
                 ) as client:
                     import time
+
                     start = time.monotonic()
                     resp = await client.get("https://httpbin.org/ip")
                     elapsed = (time.monotonic() - start) * 1000
                     return proxy, resp.status_code == 200, elapsed
             except Exception:
                 return proxy, False, 0
-        
+
         async def run():
             tasks = [test_proxy(p) for p in rotator.proxies[:20]]  # Test first 20
             return await asyncio.gather(*tasks)
-        
+
         results = asyncio.run(run())
-        
+
         table = Table(title="Proxy Test Results")
         table.add_column("Proxy", style="cyan")
         table.add_column("Status", style="green")
         table.add_column("Latency", style="yellow")
-        
+
         for proxy, ok, latency in results:
             status = "✓ OK" if ok else "✗ Failed"
             lat = f"{latency:.0f}ms" if ok else "-"
             table.add_row(proxy[:50], status, lat)
-        
+
         console.print(table)
 
 
@@ -353,9 +377,7 @@ def benchmark(
 ):
     """Benchmark crawl performance."""
     console.print(f"[cyan]Running performance benchmark on {url}[/]")
-    _run_command(
-        ["hyperfine", "--warmup", "3", f"{sys.executable} -m spider_nix.cli crawl {url}"]
-    )
+    _run_command(["hyperfine", "--warmup", "3", f"{sys.executable} -m spider_nix.cli crawl {url}"])
 
 
 # OSINT Reconnaissance commands
@@ -369,9 +391,15 @@ app.add_typer(recon_app, name="recon")
 @recon_app.command("dns")
 def recon_dns(
     domain: str = typer.Argument(..., help="Domain to query"),
-    record_type: Optional[str] = typer.Option(None, "--type", "-t", help="Specific record type (A, AAAA, MX, TXT, NS, CNAME, SOA)"),
-    nameservers: Optional[str] = typer.Option(None, "--nameservers", "-n", help="Custom DNS servers (comma-separated)"),
-    reverse: Optional[str] = typer.Option(None, "--reverse", "-r", help="Reverse DNS lookup for IP"),
+    record_type: Optional[str] = typer.Option(
+        None, "--type", "-t", help="Specific record type (A, AAAA, MX, TXT, NS, CNAME, SOA)"
+    ),
+    nameservers: Optional[str] = typer.Option(
+        None, "--nameservers", "-n", help="Custom DNS servers (comma-separated)"
+    ),
+    reverse: Optional[str] = typer.Option(
+        None, "--reverse", "-r", help="Reverse DNS lookup for IP"
+    ),
 ):
     """Perform DNS enumeration."""
 
@@ -502,7 +530,9 @@ def recon_whois(
 def recon_subdomains(
     domain: str = typer.Argument(..., help="Domain to enumerate"),
     use_crt: bool = typer.Option(True, "--crt/--no-crt", help="Use Certificate Transparency"),
-    use_bruteforce: bool = typer.Option(True, "--bruteforce/--no-bruteforce", help="Use DNS bruteforce"),
+    use_bruteforce: bool = typer.Option(
+        True, "--bruteforce/--no-bruteforce", help="Use DNS bruteforce"
+    ),
     wordlist: Optional[Path] = typer.Option(None, "--wordlist", "-w", help="Custom wordlist file"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
     max_concurrent: int = typer.Option(50, "--concurrent", "-c", help="Max concurrent DNS queries"),
@@ -525,7 +555,9 @@ def recon_subdomains(
             if use_crt:
                 console.print("[cyan]→ Querying Certificate Transparency logs...[/]")
             if use_bruteforce:
-                console.print(f"[cyan]→ Bruteforcing with {len(custom_wordlist or enumerator.DEFAULT_SUBDOMAINS)} subdomains...[/]")
+                console.print(
+                    f"[cyan]→ Bruteforcing with {len(custom_wordlist or enumerator.DEFAULT_SUBDOMAINS)} subdomains...[/]"
+                )
 
             results = await enumerator.enumerate(
                 domain,
@@ -555,6 +587,7 @@ def recon_subdomains(
             # Save to file if requested
             if output:
                 import json
+
                 data = [
                     {
                         "subdomain": r.subdomain,
@@ -578,7 +611,9 @@ def recon_subdomains(
 @recon_app.command("portscan")
 def recon_portscan(
     target: str = typer.Argument(..., help="Target host/IP"),
-    ports: Optional[str] = typer.Option(None, "--ports", "-p", help="Ports to scan (e.g., 80,443 or 1-1000)"),
+    ports: Optional[str] = typer.Option(
+        None, "--ports", "-p", help="Ports to scan (e.g., 80,443 or 1-1000)"
+    ),
     common: bool = typer.Option(False, "--common", "-c", help="Scan common ports only"),
     protocol: str = typer.Option("tcp", "--protocol", help="Protocol: tcp, udp, or both"),
     timeout: float = typer.Option(2.0, "--timeout", "-t", help="Connection timeout in seconds"),
@@ -613,6 +648,7 @@ def recon_portscan(
         else:
             # Default: scan top 100 ports
             from spider_nix.osint.scanner import COMMON_PORTS
+
             port_list = list(COMMON_PORTS.keys())
             console.print(f"[cyan]Scanning {len(port_list)} common ports ({protocol})...[/]")
             result = await scanner.scan_ports(target, port_list, protocol)
@@ -633,7 +669,11 @@ def recon_portscan(
             table.add_column("Banner", style="dim")
 
             for port_result in open_ports:
-                banner = (port_result.banner[:50] + "...") if port_result.banner and len(port_result.banner) > 50 else (port_result.banner or "-")
+                banner = (
+                    (port_result.banner[:50] + "...")
+                    if port_result.banner and len(port_result.banner) > 50
+                    else (port_result.banner or "-")
+                )
                 table.add_row(
                     str(port_result.port),
                     port_result.protocol,
@@ -656,6 +696,7 @@ def recon_portscan(
         # Save to file if requested
         if output:
             import json
+
             data = {
                 "host": result.host,
                 "scan_time_ms": result.scan_time_ms,
@@ -694,7 +735,9 @@ recon_app.add_typer(web_app, name="web")
 @web_app.command("graphql")
 def web_graphql(
     url: str = typer.Argument(..., help="URL to scan for GraphQL"),
-    introspect: bool = typer.Option(True, "--introspect/--no-introspect", help="Attempt introspection query"),
+    introspect: bool = typer.Option(
+        True, "--introspect/--no-introspect", help="Attempt introspection query"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Discover GraphQL endpoints and introspect schemas."""
@@ -729,6 +772,7 @@ def web_graphql(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "url": e.url,
@@ -757,7 +801,9 @@ def web_graphql(
 @web_app.command("structured")
 def web_structured(
     url: str = typer.Argument(..., help="URL to scan"),
-    format: str = typer.Option("all", "--format", "-f", help="Format: all, json-ld, opengraph, microdata, twitter"),
+    format: str = typer.Option(
+        "all", "--format", "-f", help="Format: all, json-ld, opengraph, microdata, twitter"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Extract structured data (JSON-LD, Open Graph, microdata)."""
@@ -806,6 +852,7 @@ def web_structured(
         # Save if requested
         if output:
             import json
+
             json_data = [
                 {
                     "url": item.url,
@@ -831,7 +878,9 @@ def web_structured(
 @web_app.command("tech")
 def web_tech(
     url: str = typer.Argument(..., help="URL to analyze"),
-    check_versions: bool = typer.Option(True, "--check-versions/--no-versions", help="Detect library versions"),
+    check_versions: bool = typer.Option(
+        True, "--check-versions/--no-versions", help="Detect library versions"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Enhanced technology detection with versions."""
@@ -877,6 +926,7 @@ def web_tech(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "name": t.name,
@@ -906,7 +956,9 @@ def web_tech(
 @web_app.command("sitemap")
 def web_sitemap(
     url: str = typer.Argument(..., help="Base URL (will append /sitemap.xml)"),
-    recursive: bool = typer.Option(True, "--recursive/--no-recursive", help="Parse nested sitemaps"),
+    recursive: bool = typer.Option(
+        True, "--recursive/--no-recursive", help="Parse nested sitemaps"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Parse sitemap.xml and extract URLs."""
@@ -916,6 +968,7 @@ def web_sitemap(
     async def run():
         # Construct sitemap URL
         from urllib.parse import urljoin
+
         sitemap_url = urljoin(url, "/sitemap.xml")
 
         parser = SitemapParser()
@@ -931,7 +984,9 @@ def web_sitemap(
 
         if analysis.url_patterns:
             console.print("\n[bold]URL Patterns:[/]")
-            for pattern, count in sorted(analysis.url_patterns.items(), key=lambda x: x[1], reverse=True)[:10]:
+            for pattern, count in sorted(
+                analysis.url_patterns.items(), key=lambda x: x[1], reverse=True
+            )[:10]:
                 console.print(f"  {pattern}: {count}")
 
         # Sample URLs
@@ -942,6 +997,7 @@ def web_sitemap(
         # Save if requested
         if output:
             import json
+
             data = {
                 "sitemap_url": analysis.sitemap_url,
                 "url_count": analysis.url_count,
@@ -972,7 +1028,9 @@ def web_sitemap(
 @web_app.command("robots")
 def web_robots(
     domain: str = typer.Argument(..., help="Domain (will fetch /robots.txt)"),
-    show_interesting: bool = typer.Option(True, "--show-interesting/--all", help="Show only interesting paths"),
+    show_interesting: bool = typer.Option(
+        True, "--show-interesting/--all", help="Show only interesting paths"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Parse robots.txt and find interesting paths."""
@@ -1017,6 +1075,7 @@ def web_robots(
         # Save if requested
         if output:
             import json
+
             data = {
                 "url": analysis.url,
                 "crawl_delay": analysis.crawl_delay,
@@ -1091,6 +1150,7 @@ def web_forms(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "url": f.url,
@@ -1125,11 +1185,185 @@ def web_forms(
     console.print("\n[green]✓ Form discovery complete[/]")
 
 
+@app.command("autofill")
+def autofill(
+    url: str = typer.Argument(..., help="URL of the page with the form to fill"),
+    profile_json: Optional[Path] = typer.Option(
+        None, "--profile", "-p", help="JSON profile file with your data"
+    ),
+    first_name: Optional[str] = typer.Option(None, "--first-name", help="First name"),
+    last_name: Optional[str] = typer.Option(None, "--last-name", help="Last name"),
+    full_name: Optional[str] = typer.Option(None, "--full-name", help="Full name"),
+    email: Optional[str] = typer.Option(None, "--email", help="Email address"),
+    phone: Optional[str] = typer.Option(None, "--phone", help="Phone number"),
+    linkedin: Optional[str] = typer.Option(None, "--linkedin", help="LinkedIn URL"),
+    github: Optional[str] = typer.Option(None, "--github", help="GitHub URL"),
+    portfolio: Optional[str] = typer.Option(None, "--portfolio", help="Portfolio URL"),
+    resume: Optional[Path] = typer.Option(None, "--resume", help="Path to resume/CV file"),
+    cover_letter: Optional[str] = typer.Option(
+        None, "--cover-letter", help="Cover letter text or path"
+    ),
+    salary: Optional[str] = typer.Option(
+        None, "--salary", help="Salary expectation (e.g. '$120,000')"
+    ),
+    location: Optional[str] = typer.Option(None, "--location", help="Your location (city, state)"),
+    work_auth: Optional[str] = typer.Option(None, "--work-auth", help="Work authorization status"),
+    years_exp: Optional[str] = typer.Option(None, "--years-exp", help="Years of experience"),
+    education: Optional[str] = typer.Option(None, "--education", help="Highest education level"),
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Output file for fill data (JSON)"
+    ),
+    generate_script: Optional[Path] = typer.Option(
+        None, "--generate-script", "-g", help="Generate Playwright Python script"
+    ),
+    generate_curl: Optional[Path] = typer.Option(
+        None, "--generate-curl", help="Generate curl commands script"
+    ),
+):
+    """🤖 Auto-fill web forms — analyze forms and match to your profile data.
+
+    Examples:
+        spider autofill https://jobs.lever.co/company/position --profile me.json
+        spider autofill https://example.com/apply \\
+            --first-name "João" --last-name "Silva" --email "joao@email.com" \\
+            --linkedin "https://linkedin.com/in/joaosilva" \\
+            --salary "R$ 15.000" --years-exp "5"
+        spider autofill https://example.com/apply --profile me.json --generate-script fill.py
+    """
+
+    console.print("\n[bold]🤖 Form Auto-Filler[/]\n")
+    console.print(f"Target: [cyan]{url}[/]")
+
+    async def run():
+        # Build profile
+        if profile_json:
+            profile = AutoFillProfile.from_json(str(profile_json))
+            console.print(f"[green]Loaded profile from {profile_json}[/]")
+        else:
+            profile = AutoFillProfile()
+
+        # Override with CLI args
+        if first_name:
+            profile.first_name = first_name
+        if last_name:
+            profile.last_name = last_name
+        if full_name:
+            profile.full_name = full_name
+        if email:
+            profile.email = email
+        if phone:
+            profile.phone = phone
+        if linkedin:
+            profile.linkedin_url = linkedin
+        if github:
+            profile.github_url = github
+        if portfolio:
+            profile.portfolio_url = portfolio
+        if location:
+            profile.location = location
+        if salary:
+            profile.salary_expectation = salary
+        if work_auth:
+            profile.work_authorization = work_auth
+        if years_exp:
+            profile.years_experience = years_exp
+        if education:
+            profile.highest_education = education
+        if resume:
+            profile.resume_path = str(resume)
+        if cover_letter:
+            # Check if it's a file path
+            cover_path = Path(cover_letter)
+            if cover_path.exists():
+                profile.cover_letter_text = cover_path.read_text()
+            else:
+                profile.cover_letter_text = cover_letter
+
+        # Fetch and analyze
+        import httpx
+
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            html = resp.text
+
+        filler = FormAutoFiller(profile)
+        results = await filler.analyze_and_fill(url, html)
+
+        if not results:
+            console.print("[yellow]No forms found on this page.[/]")
+            return
+
+        # Display results
+        for i, result in enumerate(results):
+            purpose = result.get("form_purpose") or "unknown"
+            coverage = result.get("fill_coverage", 0) * 100
+            fill_data = result.get("fill_data", {})
+            unmatched = result.get("unmatched_fields", [])
+
+            console.print(f"\n[bold]Form {i + 1}:[/] [cyan]{purpose}[/]")
+            console.print(f"  Action: [dim]{result.get('form_action', 'N/A')[:80]}[/]")
+            console.print(f"  Method: {result.get('form_method', 'get').upper()}")
+            console.print(
+                f"  Coverage: [{'green' if coverage > 50 else 'yellow'}]{coverage:.0f}%[/] ({len(fill_data)}/{result.get('fields_count', 0)} fields)"
+            )
+
+            if result.get("has_captcha"):
+                console.print("  [red]⚠️  CAPTCHA detected — auto-fill may not work[/]")
+            if result.get("has_file_upload"):
+                console.print("  [yellow]📎 File upload field(s) detected[/]")
+
+            if fill_data:
+                console.print("\n  [bold green]Fill Data:[/]")
+                for field_name, value in fill_data.items():
+                    display_val = value[:60] + "..." if len(value) > 60 else value
+                    console.print(f"    {field_name}: [cyan]{display_val}[/]")
+
+            if unmatched:
+                console.print(f"\n  [yellow]Unmatched fields ({len(unmatched)}):[/]")
+                for uf in unmatched[:10]:
+                    console.print(f"    • {uf}")
+
+        # Save output
+        if output:
+            import json
+
+            with open(output, "w") as f:
+                json.dump(results, f, indent=2, default=str)
+            console.print(f"\n[green]📄 Fill data saved to: {output}[/]")
+
+        # Generate Playwright script
+        if generate_script:
+            script = filler.generate_playwright_script(url, results)
+            generate_script.write_text(script)
+            console.print(f"[green]🎭 Playwright script: {generate_script}[/]")
+            console.print(f"    Run with: python {generate_script}")
+
+        # Generate curl commands
+        if generate_curl:
+            curl_script = filler.generate_curl_commands(results)
+            generate_curl.write_text(curl_script)
+            console.print(f"[green]📡 Curl script: {generate_curl}[/]")
+            console.print(f"    Run with: bash {generate_curl}")
+
+        # Quick tip
+        if not output and not generate_script and not generate_curl:
+            console.print(
+                f"\n[dim]Tip: Use --output to save fill data, --generate-script for Playwright, or --generate-curl for curl[/]"
+            )
+
+    asyncio.run(run())
+    console.print("\n[green]✓ Auto-fill analysis complete[/]")
+
+
 @web_app.command("dirs")
 def web_dirs(
     url: str = typer.Argument(..., help="Base URL to brute-force"),
-    wordlist: Optional[str] = typer.Option(None, "--wordlist", "-w", help="Wordlist name (common_dirs, api_paths) or path"),
-    extensions: Optional[str] = typer.Option(None, "--extensions", "-e", help="Extensions to try (comma-separated)"),
+    wordlist: Optional[str] = typer.Option(
+        None, "--wordlist", "-w", help="Wordlist name (common_dirs, api_paths) or path"
+    ),
+    extensions: Optional[str] = typer.Option(
+        None, "--extensions", "-e", help="Extensions to try (comma-separated)"
+    ),
     threads: int = typer.Option(10, "--threads", "-t", help="Concurrent threads"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
@@ -1144,6 +1378,7 @@ def web_dirs(
             if wordlist in ["common_dirs", "common_files", "api_paths"]:
                 # Built-in wordlist
                 from pathlib import Path as PathLib
+
                 wordlist_path = PathLib(__file__).parent / "osint" / "wordlists" / f"{wordlist}.txt"
                 if wordlist_path.exists():
                     wordlist_data = wordlist_path.read_text().strip().split("\n")
@@ -1196,6 +1431,7 @@ def web_dirs(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "path": e.path,
@@ -1223,7 +1459,9 @@ def web_dirs(
 @web_app.command("wellknown")
 def web_wellknown(
     url: str = typer.Argument(..., help="Base URL to scan"),
-    resources: str = typer.Option("all", "--resources", "-r", help="Resources to check (all or comma-separated)"),
+    resources: str = typer.Option(
+        "all", "--resources", "-r", help="Resources to check (all or comma-separated)"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Scan .well-known directory for resources."""
@@ -1262,6 +1500,7 @@ def web_wellknown(
         # Save if requested
         if output:
             import json
+
             data = [
                 {
                     "path": r.path,
@@ -1270,7 +1509,8 @@ def web_wellknown(
                     "content": r.content,
                     "parsed_data": r.parsed_data,
                 }
-                for r in found_resources if r.exists
+                for r in found_resources
+                if r.exists
             ]
 
             with open(output, "w") as f:
@@ -1300,6 +1540,7 @@ def web_archive(
         from_datetime = None
         if from_date:
             from datetime import datetime
+
             from_datetime = datetime.strptime(from_date, "%Y-%m-%d")
 
         # Query archive
@@ -1328,7 +1569,9 @@ def web_archive(
             table.add_row(
                 snapshot.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                 str(snapshot.status_code),
-                snapshot.archive_url[:70] + "..." if len(snapshot.archive_url) > 70 else snapshot.archive_url,
+                snapshot.archive_url[:70] + "..."
+                if len(snapshot.archive_url) > 70
+                else snapshot.archive_url,
             )
 
         console.print(table)
@@ -1336,6 +1579,7 @@ def web_archive(
         # Save if requested
         if output:
             import json
+
             data = {
                 "url": timeline.url,
                 "first_seen": timeline.first_seen.isoformat() if timeline.first_seen else None,
@@ -1365,103 +1609,412 @@ def web_archive(
 
 @app.command("job-hunt")
 def job_hunt(
-    domain: str = typer.Argument(..., help="Company domain to scan (e.g. google.com)"),
+    domain: str = typer.Argument(
+        None, help="Company domain to scan (e.g. stripe.com). If omitted, searches job boards."
+    ),
+    skills: Optional[str] = typer.Option(
+        None, "--skills", "-s", help="Your skills (comma-separated, e.g. 'python,rust,nix')"
+    ),
+    titles: Optional[str] = typer.Option(
+        None, "--titles", "-t", help="Desired job titles (comma-separated)"
+    ),
+    remote: str = typer.Option(
+        "any",
+        "--remote",
+        "-r",
+        help="Remote preference: remote_only, remote_preferred, hybrid_ok, any",
+    ),
+    min_salary: Optional[float] = typer.Option(
+        None, "--min-salary", help="Minimum salary (e.g. 80000)"
+    ),
+    currency: str = typer.Option(
+        "USD", "--currency", "-c", help="Preferred currency: USD, EUR, BRL, GBP"
+    ),
+    seniority: Optional[str] = typer.Option(
+        None, "--seniority", help="Target seniority: junior, mid, senior, staff, principal"
+    ),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
-    pages: int = typer.Option(5, "--pages", "-p", help="Max pages to crawl per career site"),
+    save_db: Optional[Path] = typer.Option(
+        None, "--save-db", help="Save to SQLite database for tracking"
+    ),
+    max_jobs: int = typer.Option(100, "--max", "-m", help="Maximum jobs to return"),
+    include_ats: bool = typer.Option(
+        True, "--ats/--no-ats", help="Scan ATS platforms (Greenhouse, Lever, Ashby)"
+    ),
+    include_boards: bool = typer.Option(
+        True, "--boards/--no-boards", help="Scan job boards (RemoteOK, WWR, HN)"
+    ),
 ):
-    """Find and analyze job opportunities."""
-    
-    console.print(f"\n[bold]💼 Job Hunt: {domain}[/]\n")
-    
+    """💼 Professional job hunt — scan ATS platforms, job boards, and career pages.
+
+    Examples:
+        spider job-hunt stripe.com                    # Scan a company's ATS
+        spider job-hunt --skills 'python,rust,nix'    # Search job boards by skills
+        spider job-hunt stripe.com --skills 'rust' --remote remote_only --min-salary 120000
+        spider job-hunt --skills 'go,k8s' --save-db jobs.db  # Save results for tracking
+    """
+
+    console.print("\n[bold]💼 Professional Job Hunt[/]\n")
+
+    # Build profile from CLI args
+    profile = None
+    skill_list: list[str] = []
+    title_list: list[str] = []
+    if skills or titles or remote != "any" or min_salary or seniority:
+        skill_list = [s.strip() for s in skills.split(",")] if skills else []
+        title_list = [t.strip() for t in titles.split(",")] if titles else []
+
+        try:
+            remote_pref = PreferredRemote(remote)
+        except ValueError:
+            console.print(f"[yellow]Invalid remote preference '{remote}'. Using 'any'.[/]")
+            remote_pref = PreferredRemote.ANY
+
+        target_seniorities = []
+        if seniority:
+            try:
+                target_seniorities = [Seniority(seniority)]
+            except ValueError:
+                console.print(f"[yellow]Invalid seniority '{seniority}'. Ignoring.[/]")
+
+        profile = JobSeekerProfile(
+            skills=skill_list,
+            desired_titles=title_list,
+            preferred_remote=remote_pref,
+            min_salary=min_salary,
+            preferred_currency=currency,
+            target_seniority=target_seniorities,
+        )
+
     async def run():
-        # 1. Find Career Pages
-        console.print("[yellow]Finding career pages...[/]")
-        finder = CareerPageFinder()
-        career_urls = await finder.find(domain)
-        
-        if not career_urls:
-            console.print(f"[red]No career pages found for {domain}[/]")
-            return
+        all_jobs: list[JobOpportunity] = []
 
-        console.print(f"[green]Found {len(career_urls)} potential career sites:[/]")
-        for url in career_urls:
-            console.print(f"  - {url}")
+        # Strategy 1: Company-specific ATS scan
+        if domain:
+            console.print(f"[yellow]🔍 Scanning {domain} for career pages & ATS listings...[/]\n")
+            discoverer = CareerPageDiscoverer()
+            career_urls = await discoverer.discover(domain, check_ats=include_ats)
 
-        # 2. Crawl and Analyze
-        console.print(f"\n[yellow]Scanning for opportunities (max {pages} pages each)...[/]")
-        analyzer = JobAnalyzer()
-        opportunities = []
-        
-        # Configure spider for this task
-        config = CrawlerConfig()
-        config.max_requests_per_crawl = pages
-        config.max_concurrent_requests = 5
-        spider = SpiderNix(config=config)
-        
-        for start_url in career_urls:
-            console.print(f"[cyan]Scanning {start_url}...[/]")
-            results = await spider.crawl(
-                start_url, 
-                max_pages=pages,
-                follow_links=True,
-                # Filter to keep within career sections usually
-                link_filter=lambda x: any(k in x for k in ["career", "job", "position", "opening", "apply"])
+            if career_urls:
+                console.print(f"[green]Found {len(career_urls)} career sources:[/]")
+                for u in career_urls[:10]:
+                    console.print(f"  • {u}")
+            else:
+                console.print(
+                    "[yellow]No career pages found via discovery. Trying ATS directly...[/]"
+                )
+
+            if include_ats:
+                console.print(
+                    "\n[yellow]📡 Querying ATS platforms (Greenhouse, Lever, Ashby)...[/]"
+                )
+                ats_jobs = await discover_and_scrape(domain, max_per_source=max_jobs // 3)
+                all_jobs.extend(ats_jobs)
+                console.print(f"[green]  → {len(ats_jobs)} jobs from ATS platforms[/]")
+
+        # Strategy 2: Job board aggregation
+        if include_boards and (not domain or skills):
+            console.print("\n[yellow]🌐 Searching job boards (RemoteOK, WeWorkRemotely, HN)...[/]")
+            search_terms = title_list if titles else None
+            board_jobs = await scrape_all_boards(
+                skills=skill_list if skills else None,
+                search_terms=search_terms,
+                max_per_source=max_jobs // 3,
+                include_hn=include_boards,
+                include_remoteok=include_boards,
+                include_wwr=include_boards,
             )
-            
-            for result in results:
-                opp = analyzer.analyze_opportunity(result)
-                if opp:
-                    opportunities.append(opp)
+            all_jobs.extend(board_jobs)
+            console.print(f"[green]  → {len(board_jobs)} jobs from public boards[/]")
 
-        # 3. Report
-        if not opportunities:
-            console.print("\n[yellow]No specific job opportunities identified.[/]")
+        # Deduplicate
+        seen_ids = set()
+        unique_jobs = []
+        for j in all_jobs:
+            if j.id not in seen_ids:
+                seen_ids.add(j.id)
+                unique_jobs.append(j)
+        all_jobs = unique_jobs
+
+        console.print(f"\n[bold]Total unique jobs found: {len(all_jobs)}[/]\n")
+
+        if not all_jobs:
+            console.print(
+                "[yellow]No jobs found. Try different skills or a specific company domain.[/]"
+            )
             return
 
-        # Sort by score
-        opportunities.sort(key=lambda x: x.score, reverse=True)
-        
-        table = Table(title=f"Job Opportunities at {domain} ({len(opportunities)})")
+        # Score with profile if provided
+        if profile:
+            console.print("[yellow]🎯 Matching jobs against your profile...[/]")
+            all_jobs = match_jobs(all_jobs, profile, min_score=0.0)
+            all_jobs.sort(key=lambda j: j.score, reverse=True)
+
+        # Display results
+        display_jobs = all_jobs[:max_jobs]
+
+        table = Table(title=f"💼 Job Opportunities ({len(display_jobs)} shown)")
+        table.add_column("#", style="dim")
+        table.add_column("Score", style="bold cyan")
         table.add_column("Title", style="green")
+        table.add_column("Company", style="white")
+        table.add_column("Location", style="dim")
         table.add_column("Seniority", style="cyan")
-        table.add_column("Remote", style="magenta")
-        table.add_column("Tech Stack", style="yellow")
-        table.add_column("Score", style="white")
-        table.add_column("URL", style="dim")
+        table.add_column("Tech", style="yellow")
+        table.add_column("Source", style="magenta")
 
-        for opp in opportunities:
+        for i, job in enumerate(display_jobs, 1):
             table.add_row(
-                opp.title or "Unknown Title",
-                opp.seniority or "-",
-                opp.remote_policy or "-",
-                ", ".join(opp.tech_stack[:3]),
-                f"{opp.score:.1f}",
-                opp.url
+                str(i),
+                f"{job.score:.0f}" if job.score else "-",
+                job.title[:60] if job.title else "Untitled",
+                job.company[:25] if job.company else "-",
+                job.location[:20] if job.location else "-",
+                job.seniority.value if job.seniority != Seniority.UNKNOWN else "-",
+                ", ".join(job.tech_stack[:4]) if job.tech_stack else "-",
+                job.source.value,
             )
-            
+
         console.print(table)
-        
+
+        # Salary summary
+        with_salary = [j for j in display_jobs if j.salary and j.salary.midpoint]
+        if with_salary:
+            console.print(f"\n[bold]💰 {len(with_salary)} jobs with salary data[/]")
+
+        # Save to database
+        if save_db:
+            console.print(f"\n[yellow]💾 Saving to database: {save_db}[/]")
+            storage = JobStorage(save_db)
+            saved = await storage.save_jobs_batch(display_jobs)
+            if profile:
+                await storage.save_profile(profile)
+            await storage.close()
+            console.print(f"[green]  → {saved} jobs saved to {save_db}[/]")
+            console.print(
+                f"[green]  → Use 'spider job-track --db {save_db}' to manage applications[/]"
+            )
+
+        # Save to JSON
         if output:
             import json
-            data = [
-                {
-                    "company": o.company,
-                    "title": o.title,
-                    "url": o.url,
-                    "seniority": o.seniority,
-                    "remote": o.remote_policy,
-                    "salary": o.salary_range,
-                    "tech": o.tech_stack,
-                    "score": o.score
-                }
-                for o in opportunities
-            ]
+
+            data = [j.to_dict() for j in display_jobs]
             with open(output, "w") as f:
-                json.dump(data, f, indent=2)
-            console.print(f"\n[green]Saved to: {output}[/]")
+                json.dump(data, f, indent=2, default=str)
+            console.print(f"\n[green]📄 Exported to: {output}[/]")
+
+        # Show top job detail
+        if display_jobs:
+            best = display_jobs[0]
+            console.print(f"\n[bold]🏆 Top Match:[/]")
+            console.print(f"  [green]{best.title}[/] @ [cyan]{best.company}[/]")
+            if best.apply_url:
+                console.print(f"  🔗 [dim]{best.apply_url}[/]")
+            if best.salary:
+                console.print(f"  💰 {best.salary.display}")
+            if best.match_details:
+                skills_info = best.match_details.get("skills", {})
+                matched = skills_info.get("matched", [])
+                if matched:
+                    console.print(f"  ✅ Skills matched: {', '.join(matched)}")
 
     asyncio.run(run())
     console.print("\n[green]✓ Job hunt complete[/]")
+
+
+@app.command("job-track")
+def job_track(
+    db: Path = typer.Option("jobs.db", "--db", "-d", help="SQLite database path"),
+    job_id: Optional[str] = typer.Option(None, "--id", "-i", help="Job ID to update"),
+    status: Optional[str] = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="New status: saved, applied, phone_screen, technical, onsite, offer, accepted, rejected, withdrawn",
+    ),
+    notes: Optional[str] = typer.Option(None, "--notes", "-n", help="Add notes to application"),
+    list_status: Optional[str] = typer.Option(
+        None, "--list", "-l", help="List applications by status"
+    ),
+    summary: bool = typer.Option(False, "--summary", help="Show pipeline summary"),
+    export_json: Optional[Path] = typer.Option(
+        None, "--export", "-e", help="Export applications to JSON"
+    ),
+):
+    """📋 Track job applications through the hiring pipeline.
+
+    Examples:
+        spider job-track --summary                    # Pipeline overview
+        spider job-track --list applied                # Show applied jobs
+        spider job-track --id abc123 --status applied  # Mark as applied
+        spider job-track --id abc123 --status interview --notes "Scheduled for Friday"
+        spider job-track --export apps.json            # Export all applications
+    """
+
+    console.print("\n[bold]📋 Application Tracker[/]\n")
+
+    async def run():
+        tracker = ApplicationTracker(db_path=str(db))
+
+        try:
+            if summary:
+                report = await tracker.pipeline_summary()
+                console.print(report)
+
+            elif list_status:
+                try:
+                    status_enum = ApplicationStatus(list_status)
+                except ValueError:
+                    console.print(f"[red]Invalid status: {list_status}[/]")
+                    return
+
+                apps = await tracker.storage.get_applications(status=status_enum, limit=50)
+                if not apps:
+                    console.print(f"[yellow]No applications with status '{list_status}'[/]")
+                else:
+                    table = Table(title=f"Applications: {list_status} ({len(apps)})")
+                    table.add_column("Job ID", style="dim")
+                    table.add_column("Title", style="green")
+                    table.add_column("Company", style="cyan")
+                    table.add_column("Score", style="yellow")
+                    table.add_column("Updated", style="dim")
+                    for app in apps:
+                        table.add_row(
+                            app.get("job_id", "")[:12],
+                            app.get("title", "-")[:50],
+                            app.get("company", "-")[:20],
+                            f"{app.get('score', 0):.0f}",
+                            app.get("updated_at", "-")[:16],
+                        )
+                    console.print(table)
+
+            elif job_id and status:
+                try:
+                    status_enum = ApplicationStatus(status)
+                except ValueError:
+                    console.print(f"[red]Invalid status: {status}[/]")
+                    console.print("Valid: " + ", ".join(s.value for s in ApplicationStatus))
+                    return
+
+                ok = await tracker.advance_status(job_id, status_enum, notes or "")
+                if ok:
+                    console.print(f"[green]✓ Job {job_id} → {status}[/]")
+                    if notes:
+                        console.print(f"  Notes: {notes}")
+                else:
+                    console.print(f"[red]Failed to update job {job_id}[/]")
+
+            elif job_id and notes:
+                ok = await tracker.add_notes(job_id, notes)
+                if ok:
+                    console.print(f"[green]✓ Notes added to {job_id}[/]")
+
+            elif export_json:
+                path = await tracker.export_applications(str(export_json))
+                console.print(f"[green]✓ Exported to {path}[/]")
+
+            else:
+                # Default: show summary
+                report = await tracker.pipeline_summary()
+                console.print(report)
+
+        finally:
+            await tracker.close()
+
+    asyncio.run(run())
+    console.print("\n[green]✓ Done[/]")
+
+
+@app.command("job-profile")
+def job_profile(
+    db: Path = typer.Option("jobs.db", "--db", "-d", help="SQLite database path"),
+    skills: Optional[str] = typer.Option(
+        None, "--skills", "-s", help="Your skills (comma-separated)"
+    ),
+    titles: Optional[str] = typer.Option(None, "--titles", "-t", help="Desired job titles"),
+    remote: Optional[str] = typer.Option(None, "--remote", "-r", help="Remote preference"),
+    min_salary: Optional[float] = typer.Option(None, "--min-salary", help="Minimum salary"),
+    currency: str = typer.Option("USD", "--currency", "-c", help="Currency"),
+    show: bool = typer.Option(False, "--show", help="Show current profile"),
+):
+    """👤 Manage your job seeker profile for better matching.
+
+    Examples:
+        spider job-profile --show
+        spider job-profile --skills 'python,rust,nix,kubernetes' --titles 'Senior Backend Engineer'
+        spider job-profile --remote remote_only --min-salary 120000 --currency USD
+    """
+
+    console.print("\n[bold]👤 Job Seeker Profile[/]\n")
+
+    async def run():
+        storage = JobStorage(db)
+
+        try:
+            if show or not any([skills, titles, remote, min_salary]):
+                profile = await storage.load_profile()
+                if profile:
+                    console.print("[bold]Current Profile:[/]")
+                    console.print(
+                        f"  Skills: {', '.join(profile.skills) if profile.skills else '(not set)'}"
+                    )
+                    console.print(
+                        f"  Titles: {', '.join(profile.desired_titles) if profile.desired_titles else '(not set)'}"
+                    )
+                    console.print(f"  Remote: {profile.preferred_remote.value}")
+                    console.print(
+                        f"  Min Salary: {profile.preferred_currency} {profile.min_salary or '(not set)'}"
+                    )
+                    console.print(
+                        f"  Target Seniority: {[s.value for s in profile.target_seniority] if profile.target_seniority else '(not set)'}"
+                    )
+                else:
+                    console.print(
+                        "[yellow]No profile saved yet. Set one with --skills, --titles, etc.[/]"
+                    )
+                return
+
+            # Build/update profile
+            existing = await storage.load_profile()
+            profile = existing or JobSeekerProfile()
+
+            if skills:
+                profile.skills = [s.strip() for s in skills.split(",")]
+            if titles:
+                profile.desired_titles = [t.strip() for t in titles.split(",")]
+            if remote:
+                try:
+                    profile.preferred_remote = PreferredRemote(remote)
+                except ValueError:
+                    console.print(f"[yellow]Invalid remote preference: {remote}[/]")
+            if min_salary is not None:
+                profile.min_salary = min_salary
+            if currency:
+                profile.preferred_currency = currency
+
+            await storage.save_profile(profile)
+            console.print("[green]✓ Profile saved![/]")
+            console.print(f"  Skills: {', '.join(profile.skills)}")
+            console.print(f"  Titles: {', '.join(profile.desired_titles)}")
+            console.print(f"  Remote: {profile.preferred_remote.value}")
+            console.print(
+                f"  Min Salary: {profile.preferred_currency} {profile.min_salary or '(not set)'}"
+            )
+
+            # Offer to re-match existing jobs
+            job_count = await storage.count_jobs()
+            if job_count > 0:
+                console.print(f"\n[yellow]📊 You have {job_count} jobs in the database.[/]")
+                console.print(
+                    f"[yellow]   Run 'spider job-track --summary' to see your pipeline.[/]"
+                )
+
+        finally:
+            await storage.close()
+
+    asyncio.run(run())
+    console.print("\n[green]✓ Done[/]")
 
 
 @app.command()
@@ -1504,7 +2057,9 @@ def presets():
 def advanced_crawl(
     url: str = typer.Argument(..., help="URL to crawl"),
     pages: int = typer.Option(10, "--pages", "-p", help="Max pages to crawl"),
-    preset: Optional[str] = typer.Option(None, "--preset", help="Config preset (run 'presets' to see options)"),
+    preset: Optional[str] = typer.Option(
+        None, "--preset", help="Config preset (run 'presets' to see options)"
+    ),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
     format: str = typer.Option("json", "--format", "-f", help="Output format: json, csv, sqlite"),
     follow: bool = typer.Option(False, "--follow", "-F", help="Follow links on pages"),
@@ -1535,7 +2090,9 @@ def advanced_crawl(
         console.print(f"[cyan]Output: {output} ({format})[/]")
 
     console.print(f"[cyan]Target: {url}[/]")
-    console.print("[cyan]Features: Rate Limiting ✓ | Circuit Breaker ✓ | Deduplication ✓ | Monitoring ✓[/]\n")
+    console.print(
+        "[cyan]Features: Rate Limiting ✓ | Circuit Breaker ✓ | Deduplication ✓ | Monitoring ✓[/]\n"
+    )
 
     # Run crawler with advanced features
     async def run():
@@ -1564,7 +2121,7 @@ def advanced_crawl(
             # Update monitor with final results
             if crawler_monitor:
                 for result in results:
-                    if result and hasattr(result, 'status_code'):
+                    if result and hasattr(result, "status_code"):
                         crawler_monitor.update(
                             url=result.url,
                             status_code=result.status_code,
@@ -1624,6 +2181,7 @@ def generate_html_report(
 ):
     """📊 Generate HTML report from existing results."""
     import json
+
     from .storage import CrawlResult
 
     console.print("\n[bold]📊 Generating HTML Report[/]\n")
@@ -1655,49 +2213,51 @@ if __name__ == "__main__":
 def multimodal_extract(
     url: str = typer.Argument(..., help="Target URL"),
     output: Path = typer.Option("extraction.json", "--output", "-o", help="Output JSON file"),
-    screenshot: Optional[Path] = typer.Option(None, "--screenshot", "-s", help="Save screenshot path"),
+    screenshot: Optional[Path] = typer.Option(
+        None, "--screenshot", "-s", help="Save screenshot path"
+    ),
     headless: bool = typer.Option(True, "--headless", help="Run browser headless"),
     use_proxy: bool = typer.Option(True, "--proxy", help="Use network OPSEC proxy"),
-    vision_model: str = typer.Option("llava-v1.5-7b-q4", "--model", "-m", help="Vision model to use"),
+    vision_model: str = typer.Option(
+        "llava-v1.5-7b-q4", "--model", "-m", help="Vision model to use"
+    ),
     iou_threshold: float = typer.Option(0.5, "--iou", help="IoU threshold for fusion (0-1)"),
 ):
     """
     🤖 Multimodal extraction - Vision + DOM fusion for CSS-independent scraping.
-    
+
     Uses vision AI to detect elements visually, then fuses with DOM for
     high-confidence extractions resilient to CSS class changes.
-    
+
     Example:
         spider recon multimodal https://example.com
         spider recon multimodal https://example.com --model llava-v1.5-7b-q4
         spider recon multimodal https://example.com --iou 0.7 --proxy
     """
     import json
+
     from .extraction import MultimodalExtractor
 
     console.print("\n[bold]🤖 Multimodal Extraction[/]\n")
     console.print(f"Target: [cyan]{url}[/]")
     console.print(f"Vision Model: [yellow]{vision_model}[/]")
     console.print(f"IoU Threshold: [yellow]{iou_threshold}[/]")
-    console.print(f"Network Proxy: [{'green' if use_proxy else 'red'}]{'enabled' if use_proxy else 'disabled'}[/]\n")
+    console.print(
+        f"Network Proxy: [{'green' if use_proxy else 'red'}]{'enabled' if use_proxy else 'disabled'}[/]\n"
+    )
 
     async def run():
-        extractor = MultimodalExtractor(
-            iou_threshold=iou_threshold,
-            vision_model=vision_model
-        )
+        extractor = MultimodalExtractor(iou_threshold=iou_threshold, vision_model=vision_model)
 
         try:
             # Extract from URL
             console.print("[cyan]→[/] Extracting elements...")
             result = await extractor.extract_from_url(
-                url,
-                headless=headless,
-                use_network_proxy=use_proxy
+                url, headless=headless, use_network_proxy=use_proxy
             )
 
             # Save results
-            with open(output, 'w') as f:
+            with open(output, "w") as f:
                 json.dump(result.to_dict(), f, indent=2)
 
             # Print summary
@@ -1710,7 +2270,9 @@ def multimodal_extract(
 
             table.add_row("URL", url)
             table.add_row("Total Elements", str(result.total_elements))
-            table.add_row("Fused (High Conf)", f"{result.fused_count} ({result.fusion_success_rate:.1f}%)")
+            table.add_row(
+                "Fused (High Conf)", f"{result.fused_count} ({result.fusion_success_rate:.1f}%)"
+            )
             table.add_row("Vision Only", str(result.vision_only_count))
             table.add_row("DOM Only", str(result.dom_only_count))
             table.add_row("Resilient Elements", str(len(result.get_resilient_elements())))
