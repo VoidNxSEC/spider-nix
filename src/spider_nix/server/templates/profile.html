@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+<div x-data="profileApp()" x-init="load()">
+    <h1 class="text-2xl font-bold mb-6">👤 Profile</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Skills & Preferences -->
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <h2 class="font-bold mb-3 text-gray-300">Skills & Preferences</h2>
+
+            <label class="block text-xs text-gray-400 mb-1">Skills (comma-separated)</label>
+            <input x-model="profile.skills_str" @change="syncSkills()"
+                   placeholder="python, rust, nix, kubernetes..."
+                   class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm mb-3">
+
+            <label class="block text-xs text-gray-400 mb-1">Desired Titles</label>
+            <input x-model="profile.titles_str" @change="syncTitles()"
+                   placeholder="Platform Engineer, SRE, Backend..."
+                   class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm mb-3">
+
+            <label class="block text-xs text-gray-400 mb-1">Remote Preference</label>
+            <select x-model="profile.preferred_remote" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm mb-3">
+                <option value="any">Any</option>
+                <option value="remote_only">Remote Only</option>
+                <option value="remote_preferred">Remote Preferred</option>
+                <option value="hybrid_ok">Hybrid OK</option>
+            </select>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Min Salary</label>
+                    <input x-model="profile.min_salary" type="number"
+                           class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Currency</label>
+                    <select x-model="profile.preferred_currency" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="BRL">BRL</option>
+                        <option value="GBP">GBP</option>
+                    </select>
+                </div>
+            </div>
+
+            <button @click="save()" class="mt-4 bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm font-bold w-full">
+                💾 Save Profile
+            </button>
+        </div>
+
+        <!-- Resume Upload -->
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <h2 class="font-bold mb-3 text-gray-300">Quick Start: Upload Resume</h2>
+            <p class="text-sm text-gray-400 mb-4">Upload your resume (PDF, DOCX, TXT) and we'll auto-extract your skills, experience, and contact info.</p>
+
+            <div class="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center mb-4">
+                <div class="text-3xl mb-2">📄</div>
+                <p class="text-sm text-gray-400">Drag & drop or click to upload</p>
+                <input type="file" accept=".pdf,.docx,.txt" class="hidden" id="resumeInput">
+                <button onclick="document.getElementById('resumeInput').click()"
+                        class="mt-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm">
+                    Choose File
+                </button>
+            </div>
+            <p class="text-xs text-gray-600">Or use CLI: spider job profile --from-resume curriculo.pdf</p>
+        </div>
+    </div>
+
+    <!-- Current Profile Summary -->
+    <div x-show="saved" class="mt-6 bg-green-900/30 border border-green-700 rounded-lg p-4">
+        <span class="text-green-400">✅ Profile saved!</span>
+        <span class="text-sm text-gray-400 ml-2">Skills, titles, and preferences updated.</span>
+    </div>
+</div>
+
+<script>
+function profileApp() {
+    return {
+        profile: {
+            skills_str: '',
+            titles_str: '',
+            preferred_remote: 'any',
+            min_salary: null,
+            preferred_currency: 'USD',
+            skills: [],
+            desired_titles: [],
+        },
+        saved: false,
+
+        async load() {
+            try {
+                const r = await fetch('/api/profile');
+                const data = await r.json();
+                if (data.profile) {
+                    const p = data.profile;
+                    this.profile.skills_str = (p.skills || []).join(', ');
+                    this.profile.titles_str = (p.desired_titles || []).join(', ');
+                    this.profile.preferred_remote = p.preferred_remote || 'any';
+                    this.profile.min_salary = p.min_salary;
+                    this.profile.preferred_currency = p.preferred_currency || 'USD';
+                    this.profile.skills = p.skills || [];
+                    this.profile.desired_titles = p.desired_titles || [];
+                }
+            } catch(e) { console.error(e); }
+        },
+
+        syncSkills() {
+            this.profile.skills = this.profile.skills_str.split(',').map(s => s.trim()).filter(Boolean);
+        },
+        syncTitles() {
+            this.profile.desired_titles = this.profile.titles_str.split(',').map(s => s.trim()).filter(Boolean);
+        },
+
+        async save() {
+            this.syncSkills();
+            this.syncTitles();
+            await fetch('/api/profile', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(this.profile)
+            });
+            this.saved = true;
+            setTimeout(() => this.saved = false, 3000);
+        }
+    }
+}
+</script>
+{% endblock %}

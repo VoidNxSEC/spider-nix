@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+<div x-data="pipelineApp()" x-init="load()">
+    <h1 class="text-2xl font-bold mb-6">📊 Application Pipeline</h1>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <template x-for="s in stages" :key="s.key">
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 text-center">
+                <div class="text-2xl font-bold" :class="s.color" x-text="s.count"></div>
+                <div class="text-xs text-gray-400 mt-1" x-text="s.label"></div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex gap-2 mb-4">
+        <button @click="filter = 'all'" :class="filter === 'all' ? 'bg-gray-600' : 'bg-gray-800'"
+                class="px-3 py-1 rounded text-sm border border-gray-700">All</button>
+        <button @click="filter = 'saved'" :class="filter === 'saved' ? 'bg-gray-600' : 'bg-gray-800'"
+                class="px-3 py-1 rounded text-sm border border-gray-700">💾 Saved</button>
+        <button @click="filter = 'applied'" :class="filter === 'applied' ? 'bg-gray-600' : 'bg-gray-800'"
+                class="px-3 py-1 rounded text-sm border border-gray-700">📤 Applied</button>
+        <button @click="filter = 'phone_screen'" :class="filter === 'phone_screen' ? 'bg-gray-600' : 'bg-gray-800'"
+                class="px-3 py-1 rounded text-sm border border-gray-700">📞 Phone</button>
+        <button @click="filter = 'technical'" :class="filter === 'technical' ? 'bg-gray-600' : 'bg-gray-800'"
+                class="px-3 py-1 rounded text-sm border border-gray-700">💻 Technical</button>
+        <button @click="filter = 'offer'" :class="filter === 'offer' ? 'bg-gray-600' : 'bg-gray-800'"
+                class="px-3 py-1 rounded text-sm border border-gray-700">🎉 Offer</button>
+    </div>
+
+    <!-- Applications Table -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-400 border-b border-gray-700">
+                    <th class="px-3 py-2">Status</th>
+                    <th class="px-3 py-2">Title</th>
+                    <th class="px-3 py-2">Company</th>
+                    <th class="px-3 py-2">Score</th>
+                    <th class="px-3 py-2">Updated</th>
+                    <th class="px-3 py-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="app in filteredApps()" :key="app.job_id || app.id">
+                    <tr class="border-b border-gray-700 hover:bg-gray-750">
+                        <td class="px-3 py-2">
+                            <span class="text-xs px-2 py-0.5 rounded"
+                                  :class="statusClass(app.status)" x-text="app.status"></span>
+                        </td>
+                        <td class="px-3 py-2 max-w-xs truncate" x-text="app.title || '-'"></td>
+                        <td class="px-3 py-2" x-text="app.company || '-'"></td>
+                        <td class="px-3 py-2" x-text="app.score ? app.score.toFixed(0) : '-'"></td>
+                        <td class="px-3 py-2 text-gray-500 text-xs" x-text="(app.updated_at || '').slice(0,10)"></td>
+                        <td class="px-3 py-2">
+                            <select @change="updateStatus(app.job_id || app.id, $event.target.value)"
+                                    class="bg-gray-700 text-xs rounded px-1 py-0.5 border border-gray-600">
+                                <option value="">Move to...</option>
+                                <option value="applied">📤 Applied</option>
+                                <option value="phone_screen">📞 Phone</option>
+                                <option value="technical">💻 Technical</option>
+                                <option value="onsite">🏢 Onsite</option>
+                                <option value="offer">🎉 Offer</option>
+                                <option value="rejected">❌ Rejected</option>
+                            </select>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+        <div x-show="filteredApps().length === 0" class="text-center py-12 text-gray-500">
+            <div class="text-3xl mb-2">📋</div>
+            <p>No applications in this stage yet.</p>
+            <p class="text-sm">Run a job hunt and save results to start tracking.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function pipelineApp() {
+    return {
+        apps: [],
+        stats: {},
+        filter: 'all',
+        stages: [
+            {key:'saved', label:'Saved', color:'text-gray-400', count:0},
+            {key:'applied', label:'Applied', color:'text-blue-400', count:0},
+            {key:'phone_screen', label:'Phone', color:'text-yellow-400', count:0},
+            {key:'technical', label:'Tech', color:'text-purple-400', count:0},
+            {key:'offer', label:'Offer', color:'text-green-400', count:0},
+        ],
+
+        async load() {
+            try {
+                const r = await fetch('/api/pipeline/stats');
+                const data = await r.json();
+                this.apps = data.applications || [];
+                this.stats = data.stats || {};
+                this.stages.forEach(s => { s.count = this.stats[s.key] || 0; });
+            } catch(e) { console.error(e); }
+        },
+
+        filteredApps() {
+            if (this.filter === 'all') return this.apps;
+            return this.apps.filter(a => a.status === this.filter);
+        },
+
+        statusClass(status) {
+            const m = { saved:'bg-gray-600', applied:'bg-blue-600', phone_screen:'bg-yellow-600',
+                       technical:'bg-purple-600', onsite:'bg-orange-600', offer:'bg-green-600',
+                       accepted:'bg-green-700', rejected:'bg-red-600' };
+            return m[status] || 'bg-gray-600';
+        },
+
+        async updateStatus(jobId, newStatus) {
+            if (!newStatus) return;
+            await fetch(`/api/jobs/${jobId}/status`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({status: newStatus})
+            });
+            this.load();
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block content %}
+<div x-data="huntApp()">
+    <h1 class="text-2xl font-bold mb-6">🔍 Job Hunt</h1>
+
+    <!-- Search Controls -->
+    <div class="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+            <input x-model="skills" placeholder="Skills: python, rust, nix..."
+                   class="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+            <input x-model="titles" placeholder="Titles: Platform Engineer, SRE..."
+                   class="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+            <select x-model="remote" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+                <option value="any">📍 Any remote</option>
+                <option value="remote_only">🏠 Remote only</option>
+                <option value="remote_preferred">🏠 Remote preferred</option>
+                <option value="hybrid_ok">🏢 Hybrid OK</option>
+            </select>
+            <input x-model="minSalary" type="number" placeholder="Min salary (e.g. 100000)"
+                   class="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" x-model="sources.remoteok" checked> RemoteOK</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" x-model="sources.wwr" checked> WWR</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" x-model="sources.hn" checked> HN Hiring</label>
+            <span class="text-gray-500">|</span>
+            <select x-model="maxJobs" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
+                <option value="50">50 jobs</option>
+                <option value="100">100 jobs</option>
+                <option value="200">200 jobs</option>
+            </select>
+            <button @click="startHunt()" :disabled="running"
+                    class="bg-green-600 hover:bg-green-700 disabled:opacity-50 px-4 py-2 rounded text-sm font-bold ml-auto">
+                🚀 Start Hunt
+            </button>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div x-show="running" class="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
+        <div class="flex items-center gap-3">
+            <div class="animate-spin w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full"></div>
+            <span>Searching job boards...</span>
+            <span x-text="progress" class="text-gray-400 text-sm"></span>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div x-show="jobs.length > 0" class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+            <span class="font-bold">Results (<span x-text="jobs.length"></span> jobs)</span>
+            <button @click="exportJSON()" class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">Export JSON</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-400 border-b border-gray-700">
+                        <th class="px-3 py-2">#</th>
+                        <th class="px-3 py-2">Score</th>
+                        <th class="px-3 py-2">Title</th>
+                        <th class="px-3 py-2">Company</th>
+                        <th class="px-3 py-2">Tech</th>
+                        <th class="px-3 py-2">Source</th>
+                        <th class="px-3 py-2">Apply</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(job, i) in jobs" :key="job.id">
+                        <tr class="border-b border-gray-700 hover:bg-gray-750">
+                            <td class="px-3 py-2 text-gray-500" x-text="i+1"></td>
+                            <td class="px-3 py-2">
+                                <span :class="job.score >= 70 ? 'text-green-400' : job.score >= 40 ? 'text-yellow-400' : 'text-gray-400'"
+                                      x-text="job.score ? job.score.toFixed(0) : '-'"></span>
+                            </td>
+                            <td class="px-3 py-2 max-w-xs truncate" x-text="job.title || 'Untitled'"></td>
+                            <td class="px-3 py-2" x-text="job.company || '-'"></td>
+                            <td class="px-3 py-2 text-gray-400" x-text="(job.tech_stack || []).slice(0,3).join(', ') || '-'"></td>
+                            <td class="px-3 py-2">
+                                <span class="text-xs bg-gray-700 px-2 py-0.5 rounded" x-text="job.source"></span>
+                            </td>
+                            <td class="px-3 py-2">
+                                <a :href="job.apply_url || job.source_url" target="_blank"
+                                   class="text-blue-400 hover:underline text-xs">open ↗</a>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Empty state -->
+    <div x-show="!running && jobs.length === 0 && !searched" class="text-center py-16 text-gray-500">
+        <div class="text-4xl mb-3">🔍</div>
+        <p>Enter your skills and start a hunt to find matching jobs.</p>
+        <p class="text-sm mt-1">Results appear here scored against your profile.</p>
+    </div>
+</div>
+
+<script>
+function huntApp() {
+    return {
+        skills: '',
+        titles: '',
+        remote: 'any',
+        minSalary: null,
+        maxJobs: 50,
+        sources: { remoteok: true, wwr: true, hn: true },
+        running: false,
+        searched: false,
+        progress: '',
+        jobs: [],
+        runId: null,
+
+        async startHunt() {
+            this.running = true;
+            this.searched = true;
+            this.progress = 'Starting...';
+            this.jobs = [];
+
+            const skillList = this.skills ? this.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+            try {
+                const resp = await fetch('/api/jobs/hunt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        skills: skillList,
+                        sources: this.sources,
+                        max_jobs: this.maxJobs,
+                    })
+                });
+                const data = await resp.json();
+                this.runId = data.run_id;
+
+                // Poll for results
+                const poll = setInterval(async () => {
+                    const r = await fetch(`/api/jobs/hunt/${this.runId}/status`);
+                    const status = await r.json();
+
+                    if (status.status === 'complete') {
+                        clearInterval(poll);
+                        this.jobs = status.jobs || [];
+                        this.running = false;
+                        this.progress = `Done! ${this.jobs.length} jobs found.`;
+                    } else if (status.status === 'error') {
+                        clearInterval(poll);
+                        this.running = false;
+                        this.progress = 'Error: ' + (status.error || 'unknown');
+                    } else {
+                        this.progress = 'Fetching...';
+                    }
+                }, 1000);
+            } catch (e) {
+                this.running = false;
+                this.progress = 'Failed: ' + e.message;
+            }
+        },
+
+        exportJSON() {
+            const blob = new Blob([JSON.stringify(this.jobs, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'jobs.json'; a.click();
+            URL.revokeObjectURL(url);
+        }
+    }
+}
+</script>
+{% endblock %}
