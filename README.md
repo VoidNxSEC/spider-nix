@@ -3,258 +3,302 @@
 <div align="center">
 
 [![CI Pipeline](https://github.com/VoidNxSEC/spider-nix/workflows/CI%20Pipeline/badge.svg)](https://github.com/VoidNxSEC/spider-nix/actions)
-[![Security Scanning](https://github.com/VoidNxSEC/spider-nix/workflows/Security%20Scanning/badge.svg)](https://github.com/VoidNxSEC/spider-nix/actions)
-[![codecov](https://codecov.io/gh/VoidNxSEC/spider-nix/branch/main/graph/badge.svg)](https://codecov.io/gh/VoidNxSEC/spider-nix)
 [![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![Security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 [![Nix](https://img.shields.io/badge/builtwith-nix-5277C3.svg?logo=nixos)](https://nixos.org)
 
-**Enterprise-grade OSINT/web crawler toolkit built with Python 3.13, asyncio, and NixOS**
+**Professional Job Hunt Toolkit — find, match, track, and auto-fill job applications**
 
-[Features](#features) • [Architecture](#architecture) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Contributing](#contributing)
+[Quick Start](#quick-start) • [Job Hunt](#-job-hunt) • [Auto-Fill](#-auto-fill) • [Web GUI](#-web-gui) • [Architecture](#-architecture)
 
 </div>
 
 ---
 
-## Why This Matters
+## What is this?
 
-Spider-Nix demonstrates production-ready software engineering practices:
+Spider-Nix is a **complete job search automation system**. It finds jobs across multiple sources, scores them against your profile, tracks your application pipeline, and can even auto-fill application forms in your browser.
 
-- **Security-First Architecture**: Multi-layered security scanning (SAST, dependency auditing, secret detection)
-- **CI/CD Excellence**: Automated testing across Python 3.11-3.13, coverage tracking, parallel job execution
-- **Modern Python**: Async/await throughout, type hints, Pydantic models, httpx/Playwright
-- **DevOps Integration**: NixOS flakes for reproducible environments, pre-commit hooks, Justfile automation
-- **Test-Driven Development**: 183 offline tests passing by default, pytest-asyncio, matrix testing
-- **Professional Standards**: Ruff linting, explicit mypy stable-module gate, comprehensive documentation
+- **🔍 Multi-source job search**: Greenhouse, Lever, Ashby, RemoteOK, WeWorkRemotely, HackerNews
+- **🎯 Smart matching**: 5-dimension scoring (skills, seniority, location, salary, title)
+- **📊 Pipeline tracking**: Full CRM for your job hunt (saved → applied → interviewed → offer)
+- **🤖 Auto-fill forms**: Analyze any application form, match fields to your profile with confidence scoring
+- **🖥️ Live mode**: Open browser, fill forms interactively with visual feedback
+- **📄 Resume parser**: Auto-extract name, email, skills, experience from PDF/DOCX/TXT
+- **🌐 Web GUI**: FastAPI + Alpine.js dashboard (zero node_modules)
 
-## By The Numbers
-
-```
-183 offline tests  │  19 opt-in integration/slow tests  │  Python 3.11-3.13
-6 OSINT categories  │  Go proxy package  │  Nix flake + legacy nix-build
-```
-
-## Features
-
-### Core Capabilities
-
-- **Dual-Mode Crawling**: HTTP (httpx) for speed, Browser (Playwright) for JavaScript-heavy sites
-- **Advanced Stealth**: Canvas fingerprinting, WebGL spoofing, navigator masking, automation detection bypass
-- **Full OSINT Suite**: DNS enumeration, WHOIS, subdomain discovery, port scanning, vulnerability assessment
-- **External Integrations**: Shodan, VirusTotal, URLScan.io with correlation engine
-- **Intelligent Proxy Rotation**: 4 strategies (round-robin, random, weighted, health-based)
-- **Job Intelligence**: Career page discovery, salary extraction, opportunity scoring
-
-### Technical Highlights
-
-- **Async Architecture**: Built on asyncio for high concurrency (configurable limits)
-- **Type Safety**: Pydantic models for configuration and data validation
-- **Storage Flexibility**: JSON, CSV, SQLite with FTS5 full-text search
-- **CLI Excellence**: Typer + Rich for beautiful terminal interfaces
-- **NixOS Integration**: Flakes for reproducible dev environments, declarative dependencies
-
-## Architecture
-
-```mermaid
-graph TB
-    CLI[CLI Interface<br/>Typer + Rich] --> Core[Core Crawler Engine]
-    CLI --> OSINT[OSINT Module]
-    CLI --> Intel[Job Intel Module]
-
-    Core --> HTTP[HTTP Crawler<br/>httpx + asyncio]
-    Core --> Browser[Browser Crawler<br/>Playwright]
-    Core --> Stealth[Anti-Detection<br/>Canvas/WebGL Spoofing]
-    Core --> Proxy[Proxy Rotator<br/>4 Strategies]
-
-    OSINT --> Recon[Reconnaissance<br/>DNS, WHOIS, Subdomains]
-    OSINT --> Scanner[Port Scanner<br/>TCP/UDP + Service Detection]
-    OSINT --> Vuln[Vulnerability Scanner<br/>CVE Matching + Headers]
-    OSINT --> Integrations[External APIs<br/>Shodan, VirusTotal, URLScan]
-    OSINT --> Correlator[Correlation Engine<br/>Entity-Relationship Graph]
-
-    Intel --> Career[Career Page Finder]
-    Intel --> JobAnalyzer[Job Opportunity Analyzer]
-
-    Core --> Storage[Storage Backend<br/>JSON/CSV/SQLite FTS5]
-    OSINT --> Storage
-    Intel --> Storage
-
-    style CLI fill:#2ea44f,color:#fff
-    style Core fill:#0969da,color:#fff
-    style OSINT fill:#bf3989,color:#fff
-    style Intel fill:#bf8700,color:#fff
-```
+---
 
 ## Quick Start
 
-### Prerequisites
-
-- **NixOS** (or Nix package manager on Linux/macOS)
-- **Python 3.11+** (provided by Nix)
-- **Git**
-
-### Installation
-
 ```bash
-# Clone repository
-git clone https://github.com/VoidNxSEC/spider-nix.git
-cd spider-nix
-
-# Enter Nix development shell (installs all dependencies)
+# Clone & enter environment
+git clone https://github.com/VoidNxSEC/spider-nix.git && cd spider-nix
 nix develop
 
-# Install pre-commit hooks
-spider hooks-install
+# Set up your profile (or auto-extract from resume)
+spider job profile --from-resume curriculo.pdf
 
-# Run tests to verify setup
-spider test
+# Search for jobs
+spider job hunt --skills 'python,rust,nix,kubernetes' --save-db vagas.db
+
+# Track applications
+spider job track --summary
+
+# Auto-fill an application form (interactive live mode)
+spider job fill https://jobs.lever.co/company/position --live --use-chrome
+
+# Launch web GUI
+spider serve
 ```
 
-### Usage Examples
+---
+
+## 💼 Job Hunt
 
 ```bash
-# Basic crawling
-spider crawl https://example.com --pages 10
+# Search job boards by skills
+spider job hunt --skills 'python,rust,kubernetes' --max 100
 
-# Browser mode for JavaScript sites
-spider crawl https://spa-site.com --browser --pages 5
+# Search with full filters
+spider job hunt --skills 'go,k8s' --titles 'Platform Engineer,SRE' \
+  --remote remote_only --min-salary 120000 --seniority senior
 
-# OSINT reconnaissance
-spider recon dns example.com
-spider recon subdomains example.com -o results.json
-spider recon portscan 192.168.1.1 -p 1-1000
+# Target a specific company's ATS
+spider job hunt stripe.com --skills 'rust'
 
-# Job hunting intelligence
-spider job-hunt example.com --pages 20 --output jobs.json
-
-# Aggressive mode with proxy rotation
-spider crawl https://target.com --aggressive --proxy-file proxies.txt
+# Save results to database for tracking
+spider job hunt --skills 'python,rust' --save-db vagas.db --max 200
 ```
 
-## Development
+### Sources:
 
-### Setup Development Environment
+| Source | Type | Method |
+|--------|------|--------|
+| **Greenhouse** | ATS API | `boards.greenhouse.io/{company}/embed/job_board` |
+| **Lever** | ATS API | `jobs.lever.co/{company}?format=json` |
+| **Ashby** | ATS API | `jobs.ashbyhq.com/{company}/api/jobs` |
+| **RemoteOK** | Job Board | `remoteok.com/api?tag=rust` |
+| **WeWorkRemotely** | Job Board | HTML + RSS parsing |
+| **HackerNews** | Community | "Who is hiring?" monthly thread |
+
+### Matching Engine:
+
+Jobs are scored 0-100 across 5 dimensions:
+
+| Dimension | Weight | What it checks |
+|-----------|--------|----------------|
+| Skills | 40pts | Overlap between your skills and job requirements |
+| Seniority | 20pts | Alignment with your experience level |
+| Location | 15pts | Remote/hybrid/onsite preference match |
+| Salary | 15pts | Whether salary meets your minimum |
+| Title | 10pts | Role title matches your desired titles |
+
+---
+
+## 🤖 Auto-Fill
 
 ```bash
-# Enter Nix devShell
-nix develop
+# Analyze a form (shows confidence per field)
+spider job fill https://jobs.lever.co/company/position --profile me.json
 
-# Install pre-commit hooks
-spider hooks-install
+# Live interactive mode — opens browser, fills forms, pauses for review
+spider job fill https://jobs.lever.co/company/position --profile me.json --live
 
-# Run full CI checks locally
-spider ci-local
+# Use your Chrome profile (cookies, sessions, logins)
+spider job fill <url> --profile me.json --live --use-chrome \
+  --chrome-profile ~/.config/google-chrome
 ```
 
-### Development Commands
+### How it works:
+
+1. **Analyzes** the HTML form using `FormAnalyzer`
+2. **Detects** the ATS platform (Greenhouse, Lever, Ashby, etc.)
+3. **Matches** each field to your profile using ATS-specific templates + label text
+4. **Scores** every match with confidence (0-100%)
+5. **Fills** high-confidence fields automatically
+6. **Highlights** medium/low confidence fields for manual review
+7. In **live mode**: injects visual feedback (green/yellow/red borders) into the browser
+
+### Confidence Scoring:
+
+| Level | Threshold | Behavior |
+|-------|-----------|----------|
+| 🟢 High | >80% | Auto-filled, green border |
+| 🟡 Medium | 50-80% | Auto-filled, yellow border — review recommended |
+| 🔴 Low | 30-50% | Not filled, red border — manual input needed |
+| ⚫ None | <30% | Ignored |
+
+### ATS Templates (YAML):
+
+```yaml
+# templates/greenhouse.yaml — 25 fields, 150+ name variations
+platform: greenhouse
+url_patterns: [boards.greenhouse.io]
+fields:
+  first_name: [first_name, firstName, candidate_first_name, given_name]
+  email: [email, candidate_email, email_address, candidateEmail]
+  resume_path: [resume, resume_upload, attachments[0], resumeFile]
+  ...
+```
+
+Templates available for **Greenhouse**, **Lever**, **Ashby**, **Workday** — extensible via YAML files in `src/spider_nix/intel/templates/`.
+
+---
+
+## 📊 Pipeline Tracking
 
 ```bash
-spider test            # Run tests
-spider test-cov        # Tests with coverage report
-spider check           # Run linters
-spider typecheck       # Run mypy on the CI-stabilized module set
-spider security        # Run security scans
-spider ci-local        # Simulate full CI pipeline
+# View dashboard
+spider job track --summary
+
+# List by status
+spider job track --list applied
+spider job track --list phone_screen
+
+# Update status
+spider job track --id abc123 --status applied --notes "CV + cover letter sent"
+spider job track --id abc123 --status interview --notes "Scheduled Friday 2pm"
+
+# Export
+spider job track --export applications.json
 ```
 
-### Testing
+### Pipeline stages:
+
+```
+saved → applied → phone_screen → technical → onsite → offer → accepted
+                    ↓              ↓          ↓        ↓
+                  rejected      rejected    rejected  rejected
+```
+
+---
+
+## 🌐 Web GUI
 
 ```bash
-# Run offline/default tests
-spider test
-
-# Run with coverage
-spider test-cov
-
-# Run specific test file
-pytest tests/test_crawler.py
-
-# Run tests matching pattern
-pytest -k "test_dns"
-
-# Run live-network/local-daemon checks explicitly
-pytest -m "integration or slow"
+spider serve                 # Opens browser at localhost:8000
+spider serve --port 3000     # Custom port
 ```
 
-## Project Structure
+### Pages:
+
+| Page | What it does |
+|------|-------------|
+| **🔍 Hunt** | Search jobs with live progress, view scored results, export JSON |
+| **📊 Pipeline** | Kanban-style cards, filter by stage, update status inline |
+| **🤖 Auto-fill** | Paste application URL, see field-by-field confidence analysis |
+| **👤 Profile** | Manage skills, salary, remote preferences; upload resume |
+
+### Tech stack:
+
+- **Backend**: FastAPI (async, WebSocket, 18 routes)
+- **Frontend**: Alpine.js + HTMX (reactive, zero build step)
+- **CSS**: Tailwind CSS (via CDN)
+- **Real-time**: WebSocket for live hunt progress
+
+---
+
+## 📄 Resume Parser
+
+```bash
+spider job profile --from-resume curriculo.pdf
+```
+
+Auto-extracts: **name**, **email**, **phone**, **LinkedIn**, **GitHub**, **skills** (40+ tech keywords), **years of experience**, **current title/company**, **education**.
+
+Supports: PDF (pypdf/pdfplumber), DOCX (native XML parsing), TXT.
+
+---
+
+## 🏗️ Architecture
 
 ```
 spider-nix/
 ├── src/spider_nix/
-│   ├── cli.py              # Typer CLI interface (600 LOC)
-│   ├── crawler.py          # HTTP async crawler (214 LOC)
-│   ├── browser.py          # Playwright integration (209 LOC)
-│   ├── stealth.py          # Anti-detection techniques (159 LOC)
-│   ├── proxy.py            # Proxy rotation engine (141 LOC)
-│   ├── storage.py          # Storage backends (162 LOC)
-│   ├── config.py           # Pydantic configuration (62 LOC)
-│   ├── osint/
-│   │   ├── reconnaissance.py  # DNS, WHOIS, subdomains (560 LOC)
-│   │   ├── scanner.py         # Port scanning (491 LOC)
-│   │   ├── analyzer.py        # Tech detection (433 LOC)
-│   │   ├── vulnerability.py   # Vuln assessment (421 LOC)
-│   │   ├── integrations.py    # Shodan, VirusTotal, URLScan (486 LOC)
-│   │   └── correlator.py      # Entity correlation (454 LOC)
-│   └── intel/
-│       └── jobs.py            # Job intelligence (194 LOC)
-├── tests/                  # Offline tests plus opt-in slow/integration cases
-├── .github/workflows/      # CI/CD pipelines
-├── flake.nix              # Nix development environment
-├── pyproject.toml         # Python package config
-└── Justfile               # Development commands
+│   ├── cli.py                   # Typer CLI — 60+ commands
+│   ├── crawler.py               # HTTP crawler (httpx + asyncio)
+│   ├── browser.py               # Playwright browser crawler
+│   ├── stealth.py               # Anti-detection (fingerprint, canvas, WebGL)
+│   ├── proxy.py                 # Proxy rotation (4 strategies)
+│   ├── storage.py               # JSON / CSV / SQLite backends
+│   ├── config.py                # Pydantic configuration models
+│   │
+│   ├── osint/                   # OSINT reconnaissance
+│   │   ├── reconnaissance.py    # DNS, WHOIS, subdomains, cert transparency
+│   │   ├── scanner.py           # Port scanner (TCP/UDP, banner grabbing)
+│   │   ├── analyzer.py          # Tech detection (50+ frameworks)
+│   │   ├── vulnerability.py     # Security headers, CVE matching
+│   │   ├── integrations.py      # Shodan, VirusTotal, URLScan
+│   │   ├── correlator.py        # Entity-relationship graph
+│   │   ├── web_discovery.py     # GraphQL, Forms, Dirs, Well-Known
+│   │   └── web_intelligence.py  # Structured data, Sitemap, Robots, Archive
+│   │
+│   ├── intel/                   # Job intelligence (NEW)
+│   │   ├── jobs.py              # Data models (JobOpportunity, Salary, enums)
+│   │   ├── job_ats.py           # ATS scrapers (Greenhouse, Lever, Ashby)
+│   │   ├── job_scrapers.py      # Job boards (RemoteOK, WWR, HN)
+│   │   ├── job_matcher.py       # 5-dimension scoring engine
+│   │   ├── job_storage.py       # SQLite + FTS5 persistence
+│   │   ├── job_tracker.py       # Application pipeline tracking
+│   │   ├── form_filler.py       # Auto-fill + Live mode + confidence scoring
+│   │   ├── resume_parser.py     # PDF/DOCX/TXT resume extraction
+│   │   ├── template_loader.py   # YAML ATS template system
+│   │   └── templates/           # ATS field templates (YAML)
+│   │       ├── greenhouse.yaml
+│   │       ├── lever.yaml
+│   │       └── ashby.yaml
+│   │
+│   └── server/                  # Web GUI (FastAPI)
+│       ├── __init__.py          # 18 routes + WebSocket
+│       └── templates/           # HTML pages
+│           ├── base.html
+│           ├── hunt.html
+│           ├── pipeline.html
+│           ├── autofill.html
+│           └── profile.html
+│
+├── tests/                       # 214 tests (183 offline + 19 integration)
+├── flake.nix                    # NixOS reproducible environment
+├── pyproject.toml               # Python package config
+└── justfile                     # Dev shortcuts
 ```
 
-## OSINT Arsenal
+---
 
-**20 modules** across 6 categories:
+## Key Design Patterns
 
-| Category | Modules | Key Features |
-|----------|---------|--------------|
-| **Reconnaissance** | DNS, WHOIS, Subdomain Enum | Certificate Transparency, DNS bruteforce, 7 record types |
-| **Analysis** | Content Analyzer, Tech Detector | Wappalyzer-style detection, 50+ frameworks/CMS |
-| **Scanning** | Port Scanner, Service Detector | 25+ service signatures, TCP/UDP, banner grabbing |
-| **Vulnerability** | Scanner, Header Checker, CVE Matcher | Security score (0-100), HSTS/CSP analysis |
-| **Integrations** | Shodan, URLScan, VirusTotal, Aggregator | Multi-source correlation, reputation checks |
-| **Correlation** | Entity-Relationship Graph | Graph export (JSON, Graphviz DOT) |
+| Pattern | Where | Why |
+|---------|-------|-----|
+| **Async/Await** | Everywhere | Non-blocking I/O for scraping, DNS, HTTP |
+| **Strategy** | ProxyRotator | 4 interchangeable rotation strategies |
+| **Circuit Breaker** | RateLimiter | Protects against failing endpoints |
+| **Factory** | Storage backends | JSON/CSV/SQLite via single interface |
+| **Template Method** | ATS scrapers | Each platform has same interface, different parser |
+| **Observer** | CrawlMonitor, WebSocket | Real-time progress streaming |
+| **Repository** | JobStorage | Abstract CRUD over SQLite + FTS5 |
+| **Confidence Scoring** | FieldMatcher | Multi-strategy field matching with weighted confidence |
 
-## Security
+---
 
-Spider-Nix takes security seriously:
+## Testing
 
-- **SAST Scanning**: Bandit for Python-specific vulnerabilities
-- **Dependency Auditing**: Safety + pip-audit for known CVEs
-- **Secret Detection**: Gitleaks in CI + pre-commit hooks
-- **Ruff Security Rules**: Flake8-bandit integration
+```bash
+spider test              # 214 tests (offline, <30s)
+spider test-cov          # With coverage report
+pytest -m "integration"  # Integration tests (requires network)
+```
 
-See [SECURITY.md](SECURITY.md) for our security policy and how to report vulnerabilities.
+---
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Development setup
-- Code style guidelines
-- Testing requirements
-- Pull request process
-
-## License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-Built with modern Python tools:
-- [httpx](https://www.python-httpx.org/) - HTTP client
-- [Playwright](https://playwright.dev/python/) - Browser automation
-- [Typer](https://typer.tiangolo.com/) - CLI framework
-- [Pydantic](https://docs.pydantic.dev/) - Data validation
-- [NixOS](https://nixos.org/) - Reproducible environments
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) and [TODO.md](docs/TODO.md) for the roadmap.
 
 ---
 
 <div align="center">
-<b>Built for the security and OSINT communities</b>
+<b>Built for developers who want to automate their job search.</b><br>
+<sub>Python 3.13 · asyncio · Playwright · FastAPI · NixOS · SQLite</sub>
 </div>

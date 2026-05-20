@@ -32,3 +32,26 @@ pip-audit-report.json
 .idea/
 *.swp
 *.swo
+
+# Database files (user data)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Generated scripts
+fill_*.py
+apply_*.py
+
+# Profile exports
+*.autofill.json
+
+# Test artifacts
+agent-hub.nix
+ssh_sessions.db
+demo_feedback.db
+file.json
+*.toml
+!pyproject.toml
+*.json
+!spider_config.json

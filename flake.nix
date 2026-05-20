@@ -40,6 +40,11 @@
           # Utils
           fake-useragent
 
+          # Web GUI
+          fastapi
+          uvicorn
+          jinja2
+
           # Multimodal extraction
           lxml
           beautifulsoup4
@@ -103,6 +108,7 @@
             playwright
             hyperfine
             spiderCli
+            httpx
 
             uv
             pre-commit
@@ -114,88 +120,93 @@
           ];
 
           shellHook = ''
-            export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
-            export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-            export PYTHONPATH="$PWD/src:$PYTHONPATH"
+                        export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
+                        export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+                        export PYTHONPATH="$PWD/src:$PYTHONPATH"
 
-            sp() {
-              spider "$@"
-            }
+                        sp() {
+                          spider "$@"
+                        }
 
-            spider-help() {
-              cat <<'EOF'
-SpiderNix Dev Commands
-  spider crawl <url>       Crawl a target
-  spider recon <module>    Run OSINT and web recon commands
-  spider test              Run the test suite
-  spider test-cov          Run tests with coverage output
-  spider check             Run Ruff lint checks
-  spider fmt               Format code with Ruff
-  spider typecheck         Run mypy
-  spider security          Run Bandit
-  spider ci-local          Run the local validation chain
-  spider proxy-start       Start the Go proxy
-  spider proxy-build       Build the Go proxy
-  spider clean             Remove local build and test artifacts
+                        spider-help() {
+                          cat <<'EOF'
+            SpiderNix Dev Commands
+              spider crawl <url>       Crawl a target
+              spider recon <module>    Run OSINT and web recon commands
+              spider test              Run the test suite
+              spider test-cov          Run tests with coverage output
+              spider check             Run Ruff lint checks
+              spider fmt               Format code with Ruff
+              spider typecheck         Run mypy
+              spider security          Run Bandit
+              spider ci-local          Run the local validation chain
+              spider proxy-start       Start the Go proxy
+              spider proxy-build       Build the Go proxy
+              spider clean             Remove local build and test artifacts
 
-Shortcuts
-  sp <args>                Shortcut for spider <args>
-  spider-help              Print this reference
-EOF
-            }
+            Shortcuts
+              sp <args>                Shortcut for spider <args>
+              spider-help              Print this reference
+            EOF
+                        }
 
-            case "$-" in
-              *i*)
-                if [ -n "$ZSH_VERSION" ]; then
-                  eval "$(env _SPIDER_COMPLETE=zsh_source spider)"
-                elif [ -n "$BASH_VERSION" ]; then
-                  eval "$(env _SPIDER_COMPLETE=bash_source spider)"
-                fi
-                ;;
-            esac
+                        case "$-" in
+                          *i*)
+                            if [ -n "$ZSH_VERSION" ]; then
+                              eval "$(env _SPIDER_COMPLETE=zsh_source spider)"
+                            elif [ -n "$BASH_VERSION" ]; then
+                              eval "$(env _SPIDER_COMPLETE=bash_source spider)"
+                            fi
+                            ;;
+                        esac
 
-            # Warn if .venv exists, as we are using Nix
-            if [ -d ".venv" ]; then
-                echo "⚠️  .venv detected but ignored in favor of Nix environment."
-                echo "   Run 'rm -rf .venv' to avoid confusion."
-            fi
+                        # Warn if .venv exists, as we are using Nix
+                        if [ -d ".venv" ]; then
+                            echo "⚠️  .venv detected but ignored in favor of Nix environment."
+                            echo "   Run 'rm -rf .venv' to avoid confusion."
+                        fi
 
-            cat <<'EOF'
+                        cat <<'EOF'
 
-   _____       _     _           _   __ _
-  / ____|     (_)   | |         | | / /(_)
- | (___  _ __  _  __| | ___ _ __| |/ /  ___  __
-  \___ \| '_ \| |/ _` |/ _ \ '__|    \ | \ \/ /
-  ____) | |_) | | (_| |  __/ |  | |\  \| |>  <
- |_____/| .__/|_|\__,_|\___|_|  |_| \_\_/_/\_\
-        | |
-        |_|   Dev Shell
+               _____       _     _           _   __ _
+              / ____|     (_)   | |         | | / /(_)
+             | (___  _ __  _  __| | ___ _ __| |/ /  ___  __
+              \___ \| '_ \| |/ _` |/ _ \ '__|    \ | \ \/ /
+              ____) | |_) | | (_| |  __/ |  | |\  \| |>  <
+             |_____/| .__/|_|\__,_|\___|_|  |_| \_\_/_/\_\
+                    | |
+                    |_|   Dev Shell
 
-Helper  : sp -> spider
+            Helper  : sp -> spider
 
-Core Commands
-  spider crawl <url>       Crawl a target
-  spider recon --help      Explore recon modules
-  spider test              Run tests
-  spider test-cov          Run tests with coverage
-  spider check             Run lint checks
-  spider fmt               Format code
-  spider typecheck         Run mypy
-  spider security          Run Bandit
-  spider ci-local          Run the local validation chain
+            Core Commands
+              spider crawl <url>       Crawl a target
+              spider serve             Start web GUI (localhost:8000)
+              spider recon --help      Explore recon modules
+              spider job --help        Job hunt, track, autofill
+              spider status            Quick dashboard
 
-Proxy
-  spider proxy-start       Start proxy server
-  spider proxy-build       Build proxy binary
+            Dev Tools
+              spider test              Run tests
+              spider test-cov          Run tests with coverage
+              spider check             Run lint checks
+              spider fmt               Format code
+              spider typecheck         Run mypy
+              spider security          Run Bandit
+              spider ci-local          Run the local validation chain
 
-Tips
-  spider --help            Full command reference
-  spider-help              Compact dev cheat sheet
-  TAB on 'spider'          Completion with command descriptions
-EOF
-            echo "Python  : $(python --version)"
-            echo "Just    : $(just --version)"
-            echo "uv      : $(uv --version)"
+            Proxy
+              spider proxy-start       Start proxy server
+              spider proxy-build       Build proxy binary
+
+            Tips
+              spider --help            Full command reference
+              spider-help              Compact dev cheat sheet
+              TAB on 'spider'          Completion with command descriptions
+            EOF
+                        echo "Python  : $(python --version)"
+                        echo "Just    : $(just --version)"
+                        echo "uv      : $(uv --version)"
           '';
         };
 

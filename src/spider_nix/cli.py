@@ -30,8 +30,15 @@ from .intel import (
     match_jobs,
     scrape_all_boards,
 )
-from .intel.form_filler import AutoFillProfile, FormAutoFiller, autofill_url
+from .intel.form_filler import (
+    AutoFillProfile,
+    FormAutoFiller,
+    LiveFormFiller,
+    autofill_url,
+    live_fill_url,
+)
 from .intel.jobs import ApplicationStatus, JobSource, RemotePolicy, Seniority
+from .intel.resume_parser import ResumeData, parse_resume
 from .monitor import CrawlMonitor
 from .osint import (
     DirectoryBruteforcer,
@@ -50,6 +57,7 @@ from .osint import (
 )
 from .proxy import ProxyRotator, fetch_public_proxies
 from .report import generate_report
+from .server import start_server
 from .storage import get_storage
 from .wizard import run_wizard
 
@@ -242,6 +250,19 @@ def version():
 
 
 @app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", "-h"),
+    port: int = typer.Option(8000, "--port", "-p"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser"),
+):
+    """🌐 Start the web GUI."""
+    console.print(f"\n[bold]🌐 Spider-Nix Web GUI[/]\n")
+    console.print(f"   URL: http://{host}:{port}")
+    console.print(f"   Press Ctrl+C to stop\n")
+    start_server(host, port, open_browser=not no_browser)
+
+
+@app.command()
 def test():
     """Run the test suite."""
     _run_command([sys.executable, "-m", "pytest", "tests/", "-v"])
@@ -386,6 +407,218 @@ recon_app = typer.Typer(
     help="🔍 OSINT reconnaissance commands (DNS, WHOIS, subdomains)",
 )
 app.add_typer(recon_app, name="recon")
+
+
+# ─── Job Intelligence commands ─────────────────────────────────────────────
+job_app = typer.Typer(
+    name="job",
+    help="💼 Professional job hunt — search, track, autofill, manage profile",
+)
+app.add_typer(job_app, name="job")
+
+
+# ─── Status Dashboard ─────────────────────────────────────────────────────
+
+
+@app.command("status")
+def status(
+    db: Path = typer.Option("jobs.db", "--db", "-d", help="SQLite database path"),
+):
+    """📊 Quick dashboard — jobs, pipeline, profile status."""
+    console.print("\n[bold]📊 Spider-Nix Status[/]\n")
+
+    async def run():
+        storage = JobStorage(db)
+        try:
+            # Job count
+            total = await storage.count_jobs()
+            console.print(f"[bold]💼 Jobs in database:[/] {total}")
+
+            # Pipeline
+            tracker = ApplicationTracker(storage)
+            report = await tracker.pipeline_summary()
+            console.print(report)
+
+            # Profile
+            profile = await storage.load_profile()
+            if profile:
+                console.print("\n[bold]👤 Profile:[/] configured")
+                if profile.skills:
+                    console.print(f"   Skills: {', '.join(profile.skills[:10])}")
+                if profile.desired_titles:
+                    console.print(f"   Titles: {', '.join(profile.desired_titles[:5])}")
+                console.print(f"   Remote: {profile.preferred_remote.value}")
+                if profile.min_salary:
+                    console.print(
+                        f"   Min Salary: {profile.preferred_currency} {profile.min_salary:,.0f}"
+                    )
+            else:
+                console.print(
+                    "\n[yellow]👤 Profile: not configured. Run 'spider job profile' to set up.[/]"
+                )
+
+            # Quick tips
+            console.print("\n[dim]Quick actions:[/]")
+            console.print("  [dim]spider job hunt --skills '...' --save-db jobs.db[/]")
+            console.print("  [dim]spider job track --summary[/]")
+            console.print("  [dim]spider job fill <url> --profile me.json --live[/]")
+
+        finally:
+            await storage.close()
+
+    asyncio.run(run())
+    console.print("\n[green]✓ Done[/]")
+
+
+# ─── Job subcommands ──────────────────────────────────────────────────────
+
+
+@job_app.command("hunt")
+def job_hunt_alias(
+    domain: str = typer.Argument(
+        None, help="Company domain (optional). If omitted, searches all job boards."
+    ),
+    skills: Optional[str] = typer.Option(
+        None, "--skills", "-s", help="Your skills (e.g. 'python,rust,nix')"
+    ),
+    titles: Optional[str] = typer.Option(None, "--titles", "-t", help="Desired job titles"),
+    remote: str = typer.Option(
+        "any", "--remote", "-r", help="remote_only, remote_preferred, hybrid_ok, any"
+    ),
+    min_salary: Optional[float] = typer.Option(None, "--min-salary", help="Minimum salary"),
+    currency: str = typer.Option("USD", "--currency", "-c", help="USD, EUR, BRL, GBP"),
+    seniority: Optional[str] = typer.Option(
+        None, "--seniority", help="junior, mid, senior, staff, principal"
+    ),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Export to JSON"),
+    save_db: Optional[Path] = typer.Option(None, "--save-db", help="Save to SQLite database"),
+    max_jobs: int = typer.Option(100, "--max", "-m", help="Maximum jobs to return"),
+    include_ats: bool = typer.Option(True, "--ats/--no-ats"),
+    include_boards: bool = typer.Option(True, "--boards/--no-boards"),
+):
+    """🔍 Search jobs across ATS platforms and job boards."""
+    # Delegate to the main job_hunt implementation
+    return job_hunt(
+        domain=domain,
+        skills=skills,
+        titles=titles,
+        remote=remote,
+        min_salary=min_salary,
+        currency=currency,
+        seniority=seniority,
+        output=output,
+        save_db=save_db,
+        max_jobs=max_jobs,
+        include_ats=include_ats,
+        include_boards=include_boards,
+    )
+
+
+@job_app.command("track")
+def job_track_alias(
+    db: Path = typer.Option("jobs.db", "--db", "-d"),
+    job_id: Optional[str] = typer.Option(None, "--id", "-i", help="Job ID to update"),
+    status: Optional[str] = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="New status: saved, applied, phone_screen, technical, onsite, offer, accepted, rejected, withdrawn",
+    ),
+    notes: Optional[str] = typer.Option(None, "--notes", "-n", help="Add notes"),
+    list_status: Optional[str] = typer.Option(None, "--list", "-l", help="List by status"),
+    summary: bool = typer.Option(False, "--summary", help="Show pipeline summary"),
+    export_json: Optional[Path] = typer.Option(None, "--export", "-e", help="Export to JSON"),
+):
+    """📋 Track applications through hiring pipeline."""
+    return job_track(
+        db=db,
+        job_id=job_id,
+        status=status,
+        notes=notes,
+        list_status=list_status,
+        summary=summary,
+        export_json=export_json,
+    )
+
+
+@job_app.command("profile")
+def job_profile_alias(
+    db: Path = typer.Option("jobs.db", "--db", "-d"),
+    skills: Optional[str] = typer.Option(None, "--skills", "-s", help="Skills (comma-separated)"),
+    titles: Optional[str] = typer.Option(None, "--titles", "-t", help="Desired job titles"),
+    remote: Optional[str] = typer.Option(None, "--remote", "-r", help="Remote preference"),
+    min_salary: Optional[float] = typer.Option(None, "--min-salary"),
+    currency: str = typer.Option("USD", "--currency", "-c"),
+    show: bool = typer.Option(False, "--show", help="Show current profile"),
+    from_resume: Optional[Path] = typer.Option(
+        None, "--from-resume", help="Parse resume PDF/DOCX/TXT"
+    ),
+):
+    """👤 Manage your job seeker profile."""
+    return job_profile(
+        db=db,
+        skills=skills,
+        titles=titles,
+        remote=remote,
+        min_salary=min_salary,
+        currency=currency,
+        show=show,
+        from_resume=from_resume,
+    )
+
+
+@job_app.command("fill")
+def autofill_alias(
+    url: str = typer.Argument(..., help="URL of the application form"),
+    profile_json: Optional[Path] = typer.Option(None, "--profile", "-p", help="JSON profile file"),
+    first_name: Optional[str] = typer.Option(None, "--first-name"),
+    last_name: Optional[str] = typer.Option(None, "--last-name"),
+    full_name: Optional[str] = typer.Option(None, "--full-name"),
+    email: Optional[str] = typer.Option(None, "--email"),
+    phone: Optional[str] = typer.Option(None, "--phone"),
+    linkedin: Optional[str] = typer.Option(None, "--linkedin"),
+    github: Optional[str] = typer.Option(None, "--github"),
+    portfolio: Optional[str] = typer.Option(None, "--portfolio"),
+    resume: Optional[Path] = typer.Option(None, "--resume"),
+    cover_letter: Optional[str] = typer.Option(None, "--cover-letter"),
+    salary: Optional[str] = typer.Option(None, "--salary"),
+    location: Optional[str] = typer.Option(None, "--location"),
+    work_auth: Optional[str] = typer.Option(None, "--work-auth"),
+    years_exp: Optional[str] = typer.Option(None, "--years-exp"),
+    education: Optional[str] = typer.Option(None, "--education"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o"),
+    generate_script: Optional[Path] = typer.Option(None, "--generate-script", "-g"),
+    generate_curl: Optional[Path] = typer.Option(None, "--generate-curl"),
+    use_chrome: bool = typer.Option(False, "--use-chrome"),
+    chrome_profile: Optional[str] = typer.Option(None, "--chrome-profile"),
+    live: bool = typer.Option(False, "--live", help="Interactive browser mode"),
+):
+    """🤖 Auto-fill application forms — analyze + fill with confidence scoring."""
+    return autofill(
+        url=url,
+        profile_json=profile_json,
+        first_name=first_name,
+        last_name=last_name,
+        full_name=full_name,
+        email=email,
+        phone=phone,
+        linkedin=linkedin,
+        github=github,
+        portfolio=portfolio,
+        resume=resume,
+        cover_letter=cover_letter,
+        salary=salary,
+        location=location,
+        work_auth=work_auth,
+        years_exp=years_exp,
+        education=education,
+        output=output,
+        generate_script=generate_script,
+        generate_curl=generate_curl,
+        use_chrome=use_chrome,
+        chrome_profile=chrome_profile,
+        live=live,
+    )
 
 
 @recon_app.command("dns")
@@ -1219,6 +1452,15 @@ def autofill(
     generate_curl: Optional[Path] = typer.Option(
         None, "--generate-curl", help="Generate curl commands script"
     ),
+    use_chrome: bool = typer.Option(
+        False, "--use-chrome", help="Use system Chrome with your profile (cookies, sessions)"
+    ),
+    chrome_profile: Optional[str] = typer.Option(
+        None, "--chrome-profile", help="Path to Chrome user data directory"
+    ),
+    live: bool = typer.Option(
+        False, "--live", help="Live mode: open browser, fill interactively, review before submit"
+    ),
 ):
     """🤖 Auto-fill web forms — analyze forms and match to your profile data.
 
@@ -1235,6 +1477,55 @@ def autofill(
     console.print(f"Target: [cyan]{url}[/]")
 
     async def run():
+        # Live mode: interactive browser fill
+        if live:
+            console.print("[cyan]🕹️  Live mode — opening browser for interactive fill[/]")
+            live_profile = (
+                AutoFillProfile.from_json(str(profile_json)) if profile_json else AutoFillProfile()
+            )
+            if first_name:
+                live_profile.first_name = first_name
+            if last_name:
+                live_profile.last_name = last_name
+            if full_name:
+                live_profile.full_name = full_name
+            if email:
+                live_profile.email = email
+            if phone:
+                live_profile.phone = phone
+            if linkedin:
+                live_profile.linkedin_url = linkedin
+            if github:
+                live_profile.github_url = github
+            if portfolio:
+                live_profile.portfolio_url = portfolio
+            if location:
+                live_profile.location = location
+            if salary:
+                live_profile.salary_expectation = salary
+            if work_auth:
+                live_profile.work_authorization = work_auth
+            if years_exp:
+                live_profile.years_experience = years_exp
+            if education:
+                live_profile.highest_education = education
+            if resume:
+                live_profile.resume_path = str(resume)
+            if cover_letter:
+                cp = Path(cover_letter)
+                live_profile.cover_letter_text = cp.read_text() if cp.exists() else cover_letter
+            success = await live_fill_url(
+                url,
+                live_profile,
+                use_chrome=use_chrome,
+                chrome_user_data_dir=str(chrome_profile) if chrome_profile else None,
+            )
+            if success:
+                console.print("\n[green]✓ Live fill completed and submitted![/]")
+            else:
+                console.print("\n[yellow]Live fill ended without submission.[/]")
+            return
+
         # Build profile
         if profile_json:
             profile = AutoFillProfile.from_json(str(profile_json))
@@ -1296,32 +1587,65 @@ def autofill(
         # Display results
         for i, result in enumerate(results):
             purpose = result.get("form_purpose") or "unknown"
+            platform = result.get("platform") or "generic"
             coverage = result.get("fill_coverage", 0) * 100
             fill_data = result.get("fill_data", {})
-            unmatched = result.get("unmatched_fields", [])
+            fill_items = result.get("fill_results", [])
+            conf_summary = result.get("confidence_summary", {})
 
-            console.print(f"\n[bold]Form {i + 1}:[/] [cyan]{purpose}[/]")
+            console.print(f"\n[bold]Form {i + 1}:[/] [cyan]{purpose}[/] [dim]({platform})[/]")
             console.print(f"  Action: [dim]{result.get('form_action', 'N/A')[:80]}[/]")
             console.print(f"  Method: {result.get('form_method', 'get').upper()}")
+
+            # Confidence summary bar
+            high_c = conf_summary.get("high", 0)
+            med_c = conf_summary.get("medium", 0)
+            low_c = conf_summary.get("low", 0)
+            none_c = conf_summary.get("none", 0)
+            total_f = sum([high_c, med_c, low_c, none_c])
+            bars = []
+            if high_c:
+                bars.append(f"[green]{'█' * high_c}[/]")
+            if med_c:
+                bars.append(f"[yellow]{'█' * med_c}[/]")
+            if low_c:
+                bars.append(f"[red]{'█' * low_c}[/]")
+            if none_c:
+                bars.append(f"[dim]{'░' * none_c}[/]")
+            bar_str = "".join(bars)
+            console.print(f"  Confidence: {bar_str}")
             console.print(
-                f"  Coverage: [{'green' if coverage > 50 else 'yellow'}]{coverage:.0f}%[/] ({len(fill_data)}/{result.get('fields_count', 0)} fields)"
+                f"  [green]● {high_c} high[/]  [yellow]● {med_c} medium[/]  [red]● {low_c} low[/]  [dim]● {none_c} none[/]"
             )
 
             if result.get("has_captcha"):
-                console.print("  [red]⚠️  CAPTCHA detected — auto-fill may not work[/]")
+                console.print("  [red]⚠️  CAPTCHA detected[/]")
             if result.get("has_file_upload"):
                 console.print("  [yellow]📎 File upload field(s) detected[/]")
 
-            if fill_data:
-                console.print("\n  [bold green]Fill Data:[/]")
-                for field_name, value in fill_data.items():
-                    display_val = value[:60] + "..." if len(value) > 60 else value
-                    console.print(f"    {field_name}: [cyan]{display_val}[/]")
+            if fill_items:
+                console.print("\n  [bold]Field Details:[/]")
+                for f in fill_items:
+                    name = f.get("field_name", "?")
+                    label = f.get("field_label")
+                    conf = f.get("confidence", 0)
+                    value = f.get("value")
+                    matched_by = f.get("matched_by", "?")
 
-            if unmatched:
-                console.print(f"\n  [yellow]Unmatched fields ({len(unmatched)}):[/]")
-                for uf in unmatched[:10]:
-                    console.print(f"    • {uf}")
+                    if conf >= 0.8:
+                        icon = "🟢"
+                    elif conf >= 0.5:
+                        icon = "🟡"
+                    elif conf >= 0.3:
+                        icon = "🔴"
+                    else:
+                        icon = "⚫"
+
+                    label_str = f"({label})" if label else ""
+                    val_str = f"→ [cyan]{value[:50]}[/]" if value else "→ [dim](empty)[/]"
+                    console.print(
+                        f"    {icon} [bold]{name}[/] {label_str} {val_str} [dim]({matched_by}, {conf:.0%})[/]"
+                    )
 
         # Save output
         if output:
@@ -1333,9 +1657,13 @@ def autofill(
 
         # Generate Playwright script
         if generate_script:
-            script = filler.generate_playwright_script(url, results)
+            script = filler.generate_playwright_script(
+                url, results, use_chrome, str(chrome_profile) if chrome_profile else None
+            )
             generate_script.write_text(script)
             console.print(f"[green]🎭 Playwright script: {generate_script}[/]")
+            if use_chrome:
+                console.print("    [cyan]Using system Chrome with your profile[/]")
             console.print(f"    Run with: python {generate_script}")
 
         # Generate curl commands
@@ -1755,24 +2083,25 @@ def job_hunt(
 
         table = Table(title=f"💼 Job Opportunities ({len(display_jobs)} shown)")
         table.add_column("#", style="dim")
-        table.add_column("Score", style="bold cyan")
+        table.add_column("Sc", style="bold cyan")
         table.add_column("Title", style="green")
         table.add_column("Company", style="white")
         table.add_column("Location", style="dim")
-        table.add_column("Seniority", style="cyan")
-        table.add_column("Tech", style="yellow")
+        table.add_column("Stk", style="yellow")
         table.add_column("Source", style="magenta")
+        table.add_column("Apply URL", style="dim")
 
         for i, job in enumerate(display_jobs, 1):
+            apply_url = (job.apply_url or job.source_url)[:55]
             table.add_row(
                 str(i),
                 f"{job.score:.0f}" if job.score else "-",
-                job.title[:60] if job.title else "Untitled",
-                job.company[:25] if job.company else "-",
-                job.location[:20] if job.location else "-",
-                job.seniority.value if job.seniority != Seniority.UNKNOWN else "-",
-                ", ".join(job.tech_stack[:4]) if job.tech_stack else "-",
+                job.title[:50] if job.title else "Untitled",
+                job.company[:20] if job.company else "-",
+                job.location[:15] if job.location else "-",
+                ", ".join(job.tech_stack[:3]) if job.tech_stack else "-",
                 job.source.value,
+                apply_url if apply_url else "-",
             )
 
         console.print(table)
@@ -1937,6 +2266,9 @@ def job_profile(
     min_salary: Optional[float] = typer.Option(None, "--min-salary", help="Minimum salary"),
     currency: str = typer.Option("USD", "--currency", "-c", help="Currency"),
     show: bool = typer.Option(False, "--show", help="Show current profile"),
+    from_resume: Optional[Path] = typer.Option(
+        None, "--from-resume", help="Parse resume PDF/DOCX/TXT and populate profile"
+    ),
 ):
     """👤 Manage your job seeker profile for better matching.
 
@@ -1944,6 +2276,7 @@ def job_profile(
         spider job-profile --show
         spider job-profile --skills 'python,rust,nix,kubernetes' --titles 'Senior Backend Engineer'
         spider job-profile --remote remote_only --min-salary 120000 --currency USD
+        spider job-profile --from-resume curriculo.pdf
     """
 
     console.print("\n[bold]👤 Job Seeker Profile[/]\n")
@@ -1952,6 +2285,43 @@ def job_profile(
         storage = JobStorage(db)
 
         try:
+            # Parse resume if provided
+            if from_resume:
+                console.print(f"[yellow]📄 Parsing resume: {from_resume}[/]")
+                try:
+                    resume_data = parse_resume(str(from_resume))
+                    console.print(resume_data.summary())
+
+                    # Populate profile from resume
+                    profile = resume_data.to_job_seeker_profile()
+                    autofill_p = resume_data.to_autofill_profile()
+
+                    # Save both profiles
+                    await storage.save_profile(profile)
+
+                    # Also save AutoFillProfile as JSON for form filling
+                    import json
+
+                    af_json_path = Path(str(db)).with_suffix(".autofill.json")
+                    af_json_path.write_text(json.dumps(autofill_p.to_dict(), indent=2))
+
+                    console.print("\n[green]✓ Profile populated from resume![/]")
+                    console.print(f"  Skills: {', '.join(profile.skills[:15])}")
+                    console.print(f"  Experience: {profile.years_experience:.1f} years")
+                    console.print(f"  Seniority: {profile.current_seniority.value}")
+
+                    # Also save matching profile
+                    if profile.desired_titles:
+                        console.print(f"  Titles: {', '.join(profile.desired_titles)}")
+
+                    console.print(
+                        "\n[dim]Run 'spider job hunt --skills ...' to find matching jobs[/]"
+                    )
+                    return
+                except Exception as e:
+                    console.print(f"[red]Failed to parse resume: {e}[/]")
+                    return
+
             if show or not any([skills, titles, remote, min_salary]):
                 profile = await storage.load_profile()
                 if profile:
