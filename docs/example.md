@@ -1,10 +1,10 @@
 
 🕷️ SpiderNix v0.2.0 - Advanced Mode
 
-Target: https://antigravity.google
+Target: https://example.com
 Features: Rate Limiting ✓ | Circuit Breaker ✓ | Deduplication ✓ | Monitoring ✓
 
-✓ https://antigravity.google (200)
+✓ https://example.com (200)
 ⠋ Crawling... ━━━━                                      10% (1/10) 0:00:00
 ╭────────────────────────────────────────────────────────────────────────────── Overview ──────────────────────────────────────────────────────────────────────────────╮
 │   Elapsed Time           00:00:00                                                                                                                                    │

@@ -1467,8 +1467,9 @@ def autofill(
     Examples:
         spider autofill https://jobs.lever.co/company/position --profile me.json
         spider autofill https://example.com/apply \\
-            --first-name "João" --last-name "Silva" --email "joao@email.com" \\
-            --linkedin "https://linkedin.com/in/joaosilva" \\
+            --first-name "Candidate" --last-name "Example" \\
+            --email "candidate@example.com" \\
+            --linkedin "https://linkedin.com/in/example-candidate" \\
             --salary "R$ 15.000" --years-exp "5"
         spider autofill https://example.com/apply --profile me.json --generate-script fill.py
     """
@@ -2287,7 +2288,8 @@ def job_profile(
         try:
             # Parse resume if provided
             if from_resume:
-                console.print(f"[yellow]📄 Parsing resume: {from_resume}[/]")
+                suffix = from_resume.suffix.lower() or "unknown type"
+                console.print(f"[yellow]📄 Parsing resume file ({suffix})[/]")
                 try:
                     resume_data = parse_resume(str(from_resume))
                     console.print(resume_data.summary())

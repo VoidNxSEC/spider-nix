@@ -131,9 +131,9 @@ Backend serves a REST API + WebSocket for live updates. Frontend is a single-pag
 │  │ ┌──────────────────────────────────────────────────┐││
 │  │ │ Field           │ Value              │ Conf  │   │││
 │  │ ├──────────────────────────────────────────────────┤││
-│  │ │ Full Name       │ João Silva         │ 🟢 95%│   │││
-│  │ │ Email           │ joao@email.com     │ 🟢 99%│   │││
-│  │ │ Phone           │ +55 11 99999-9999  │ 🟢 90%│   │││
+│  │ │ Full Name       │ Candidate Example  │ 🟢 95%│   │││
+│  │ │ Email           │ anon@example.com  │ 🟢 99%│   │││
+│  │ │ Phone           │ +1 555 0100        │ 🟢 90%│   │││
 │  │ │ LinkedIn        │ linkedin.com/in/.. │ 🟢 95%│   │││
 │  │ │ Resume Upload   │ curriculo.pdf ⚠️    │ 🟡 70%│   │││
 │  │ │ Cover Letter    │ [auto-generated]   │ 🟡 65%│   │││
@@ -153,8 +153,8 @@ Backend serves a REST API + WebSocket for live updates. Frontend is a single-pag
 │                                                         │
 │  ┌─────────────────────────────────────────────────────┐│
 │  │ Personal                                            ││
-│  │ First Name: [João        ]  Last Name: [Silva     ]││
-│  │ Email:      [joao@...    ]  Phone:    [+55119...  ]││
+│  │ First Name: [Candidate   ]  Last Name: [Example   ]││
+│  │ Email:      [anon@...    ]  Phone:    [+15550100 ]││
 │  │ Location:   [São Paulo   ]  Country:  [Brazil     ]││
 │  ├─────────────────────────────────────────────────────┤│
 │  │ Skills                                              ││

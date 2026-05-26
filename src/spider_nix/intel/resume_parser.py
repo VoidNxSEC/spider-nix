@@ -16,6 +16,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _resume_log_label(path: Path) -> str:
+    """Return non-identifying metadata for resume log messages."""
+    suffix = path.suffix.lower() or "<none>"
+    return f"suffix={suffix}"
+
+
 @dataclass
 class ResumeData:
     """Structured data extracted from a resume."""
@@ -542,7 +548,7 @@ def parse_resume(path: str | Path) -> ResumeData:
     if not path.exists():
         raise FileNotFoundError(f"Resume file not found: {path}")
 
-    logger.info(f"Parsing resume: {path}")
+    logger.info("Parsing resume file (%s)", _resume_log_label(path))
 
     # Step 1: Extract raw text
     raw_text = extract_text(path)
@@ -579,7 +585,17 @@ def parse_resume(path: str | Path) -> ResumeData:
     )
 
     logger.info(
-        f"Resume parsed: name='{name}', email='{email}', skills={len(skills)}, exp={years_exp}y"
+        "Resume parsed: fields=%s, skills=%d, exp=%.1fy",
+        {
+            "name": bool(name),
+            "email": bool(email),
+            "phone": bool(phone),
+            "linkedin": bool(linkedin),
+            "github": bool(github),
+            "portfolio": bool(portfolio),
+        },
+        len(skills),
+        years_exp,
     )
 
     return data
