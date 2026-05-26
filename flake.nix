@@ -67,6 +67,7 @@
           bandit
           build
           pip
+          pypdf
           # safety # Not found in nixpkgs
           # pip-audit # Not found in nixpkgs
         ];
@@ -209,6 +210,8 @@
                         echo "uv      : $(uv --version)"
           '';
         };
+
+        formatter = pkgs.nixfmt;
 
         packages.default = pkgs.python313Packages.buildPythonApplication {
           pname = "spider-nix";
