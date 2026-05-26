@@ -1,0 +1,77 @@
+# SpiderNix local profile template.
+# This file is intentionally ignored by Git because it may contain personal data.
+
+[matching]
+# Used to score and filter jobs.
+skills = [
+  "Python",
+  "Linux",
+  "Nix",
+  "Kubernetes",
+]
+skill_keywords = {}
+years_experience = 0.0
+current_seniority = "unknown"
+target_seniority = [
+  "mid",
+  "senior",
+]
+preferred_remote = "remote_preferred"
+preferred_locations = [
+  "Remote",
+]
+excluded_locations = []
+min_salary = 0
+preferred_currency = "USD"
+desired_titles = [
+  "Software Engineer",
+  "Platform Engineer",
+]
+excluded_titles = []
+target_companies = []
+excluded_industries = []
+
+[autofill]
+# Used by form filling. Replace placeholders locally before live use.
+first_name = "Candidate"
+last_name = "Example"
+full_name = "Candidate Example"
+email = "candidate@example.com"
+phone = "+1 555 0100"
+location = "Remote"
+city = "Example City"
+state = "Example State"
+country = "Example Country"
+postal_code = "00000"
+
+linkedin_url = "https://linkedin.com/in/example-candidate"
+github_url = "https://github.com/example-candidate"
+portfolio_url = "https://example.com"
+website = "https://example.com"
+twitter_url = ""
+
+resume_path = "/path/to/resume.pdf"
+cover_letter_text = "Cover letter placeholder."
+
+salary_expectation = "USD 0"
+available_start_date = "YYYY-MM-DD"
+work_authorization = "authorized"
+requires_sponsorship = "no"
+
+gender = "decline_to_answer"
+ethnicity = "decline_to_answer"
+veteran_status = "decline_to_answer"
+disability_status = "decline_to_answer"
+
+highest_education = "Example Degree"
+university = "Example University"
+degree = "Example Field"
+graduation_year = "YYYY"
+
+years_experience = "0"
+current_company = "Example Company"
+current_title = "Example Title"
+
+[autofill.custom_fields]
+# Add ATS-specific or custom questionnaire answers here.
+example_question = "Example answer"

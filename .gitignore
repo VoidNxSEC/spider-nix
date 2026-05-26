@@ -1,4 +1,4 @@
-__pycache__/
+**./__pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
@@ -65,7 +65,7 @@ agent-hub.nix
 ssh_sessions.db
 demo_feedback.db
 file.json
-*.toml
+!profile.toml
 !pyproject.toml
 *.json
 !spider_config.json
