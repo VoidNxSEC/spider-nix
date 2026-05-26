@@ -38,6 +38,8 @@ pip-audit-report.json
 *.db-journal
 *.db-wal
 *.db-shm
+jobs.sqlite*
+applications.sqlite*
 
 # Generated scripts
 fill_*.py
@@ -45,6 +47,18 @@ apply_*.py
 
 # Profile exports
 *.autofill.json
+profile*.json
+resume*.json
+curriculo*.json
+job-profile*.json
+
+# Job crawling outputs (may contain target URLs, application notes, or profile data)
+job-results*
+jobs-export*
+applications-export*
+crawl-results*
+spider-results*
+report-*.html
 
 # Test artifacts
 agent-hub.nix
