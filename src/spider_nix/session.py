@@ -2,9 +2,10 @@
 
 import asyncio
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 from rich.console import Console
@@ -94,11 +95,10 @@ class CaptchaDetector:
             headers = dict(response.headers)
 
         # Check status codes
-        if status_code in {403, 429}:
-            if html_content:
-                for pattern in self.compiled_patterns:
-                    if pattern.search(html_content):
-                        return True, self._identify_captcha_type(html_content)
+        if status_code in {403, 429} and html_content:
+            for pattern in self.compiled_patterns:
+                if pattern.search(html_content):
+                    return True, self._identify_captcha_type(html_content)
 
         # Check headers
         if headers:
@@ -351,7 +351,7 @@ async def session_example():
         login_url="https://example.com/login",
         credentials={
             "username": "user@example.com",
-            "password": "password123",
+            "password": "password123",  # nosec B105
         },
     )
 

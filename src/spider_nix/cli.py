@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -18,14 +17,10 @@ from .crawler import SpiderNix
 from .intel import (
     ApplicationTracker,
     CareerPageDiscoverer,
-    HNHiringScraper,
     JobOpportunity,
-    JobScorer,
     JobSeekerProfile,
     JobStorage,
     PreferredRemote,
-    RemoteOKScraper,
-    WeWorkRemotelyScraper,
     discover_and_scrape,
     match_jobs,
     scrape_all_boards,
@@ -33,12 +28,10 @@ from .intel import (
 from .intel.form_filler import (
     AutoFillProfile,
     FormAutoFiller,
-    LiveFormFiller,
-    autofill_url,
     live_fill_url,
 )
-from .intel.jobs import ApplicationStatus, JobSource, RemotePolicy, Seniority
-from .intel.resume_parser import ResumeData, parse_resume
+from .intel.jobs import ApplicationStatus, Seniority
+from .intel.resume_parser import parse_resume
 from .monitor import CrawlMonitor
 from .osint import (
     DirectoryBruteforcer,
@@ -90,7 +83,7 @@ def _find_repo_root() -> Path:
     raise typer.Exit(1)
 
 
-def _run_command(command: list[str], cwd: Optional[Path] = None) -> None:
+def _run_command(command: list[str], cwd: Path | None = None) -> None:
     """Run a repository workflow command and propagate its exit status."""
     repo_root = _find_repo_root()
     resolved_cwd = (repo_root / cwd) if cwd else repo_root
@@ -103,12 +96,12 @@ def _run_command(command: list[str], cwd: Optional[Path] = None) -> None:
 def crawl(
     url: str = typer.Argument(..., help="URL to crawl"),
     pages: int = typer.Option(10, "--pages", "-p", help="Max pages to crawl"),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
+    output: str | None = typer.Option(None, "--output", "-o", help="Output file path"),
     format: str = typer.Option("json", "--format", "-f", help="Output format: json, csv, sqlite"),
     browser: bool = typer.Option(False, "--browser", "-b", help="Use browser for JS sites"),
     headless: bool = typer.Option(True, "--headless", help="Run browser headless"),
     follow: bool = typer.Option(False, "--follow", "-F", help="Follow links on pages"),
-    proxy_file: Optional[Path] = typer.Option(None, "--proxy-file", help="File with proxy list"),
+    proxy_file: Path | None = typer.Option(None, "--proxy-file", help="File with proxy list"),
     concurrent: int = typer.Option(10, "--concurrent", "-c", help="Concurrent requests"),
     aggressive: bool = typer.Option(
         False, "--aggressive", "-a", help="Aggressive mode (fast, no delays)"
@@ -120,10 +113,7 @@ def crawl(
     console.print(f"\n[bold]🕷️ SpiderNix v{__version__}[/]\n")
 
     # Build config
-    if aggressive:
-        config = AGGRESSIVE_CONFIG.model_copy()
-    else:
-        config = CrawlerConfig()
+    config = AGGRESSIVE_CONFIG.model_copy() if aggressive else CrawlerConfig()
 
     config.max_requests_per_crawl = pages
     config.max_concurrent_requests = concurrent
@@ -256,9 +246,9 @@ def serve(
     no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser"),
 ):
     """🌐 Start the web GUI."""
-    console.print(f"\n[bold]🌐 Spider-Nix Web GUI[/]\n")
+    console.print("\n[bold]🌐 Spider-Nix Web GUI[/]\n")
     console.print(f"   URL: http://{host}:{port}")
-    console.print(f"   Press Ctrl+C to stop\n")
+    console.print("   Press Ctrl+C to stop\n")
     start_server(host, port, open_browser=not no_browser)
 
 
@@ -478,20 +468,20 @@ def job_hunt_alias(
     domain: str = typer.Argument(
         None, help="Company domain (optional). If omitted, searches all job boards."
     ),
-    skills: Optional[str] = typer.Option(
+    skills: str | None = typer.Option(
         None, "--skills", "-s", help="Your skills (e.g. 'python,rust,nix')"
     ),
-    titles: Optional[str] = typer.Option(None, "--titles", "-t", help="Desired job titles"),
+    titles: str | None = typer.Option(None, "--titles", "-t", help="Desired job titles"),
     remote: str = typer.Option(
         "any", "--remote", "-r", help="remote_only, remote_preferred, hybrid_ok, any"
     ),
-    min_salary: Optional[float] = typer.Option(None, "--min-salary", help="Minimum salary"),
+    min_salary: float | None = typer.Option(None, "--min-salary", help="Minimum salary"),
     currency: str = typer.Option("USD", "--currency", "-c", help="USD, EUR, BRL, GBP"),
-    seniority: Optional[str] = typer.Option(
+    seniority: str | None = typer.Option(
         None, "--seniority", help="junior, mid, senior, staff, principal"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Export to JSON"),
-    save_db: Optional[Path] = typer.Option(None, "--save-db", help="Save to SQLite database"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Export to JSON"),
+    save_db: Path | None = typer.Option(None, "--save-db", help="Save to SQLite database"),
     max_jobs: int = typer.Option(100, "--max", "-m", help="Maximum jobs to return"),
     include_ats: bool = typer.Option(True, "--ats/--no-ats"),
     include_boards: bool = typer.Option(True, "--boards/--no-boards"),
@@ -517,17 +507,17 @@ def job_hunt_alias(
 @job_app.command("track")
 def job_track_alias(
     db: Path = typer.Option("jobs.db", "--db", "-d"),
-    job_id: Optional[str] = typer.Option(None, "--id", "-i", help="Job ID to update"),
-    status: Optional[str] = typer.Option(
+    job_id: str | None = typer.Option(None, "--id", "-i", help="Job ID to update"),
+    status: str | None = typer.Option(
         None,
         "--status",
         "-s",
         help="New status: saved, applied, phone_screen, technical, onsite, offer, accepted, rejected, withdrawn",
     ),
-    notes: Optional[str] = typer.Option(None, "--notes", "-n", help="Add notes"),
-    list_status: Optional[str] = typer.Option(None, "--list", "-l", help="List by status"),
+    notes: str | None = typer.Option(None, "--notes", "-n", help="Add notes"),
+    list_status: str | None = typer.Option(None, "--list", "-l", help="List by status"),
     summary: bool = typer.Option(False, "--summary", help="Show pipeline summary"),
-    export_json: Optional[Path] = typer.Option(None, "--export", "-e", help="Export to JSON"),
+    export_json: Path | None = typer.Option(None, "--export", "-e", help="Export to JSON"),
 ):
     """📋 Track applications through hiring pipeline."""
     return job_track(
@@ -544,13 +534,13 @@ def job_track_alias(
 @job_app.command("profile")
 def job_profile_alias(
     db: Path = typer.Option("jobs.db", "--db", "-d"),
-    skills: Optional[str] = typer.Option(None, "--skills", "-s", help="Skills (comma-separated)"),
-    titles: Optional[str] = typer.Option(None, "--titles", "-t", help="Desired job titles"),
-    remote: Optional[str] = typer.Option(None, "--remote", "-r", help="Remote preference"),
-    min_salary: Optional[float] = typer.Option(None, "--min-salary"),
+    skills: str | None = typer.Option(None, "--skills", "-s", help="Skills (comma-separated)"),
+    titles: str | None = typer.Option(None, "--titles", "-t", help="Desired job titles"),
+    remote: str | None = typer.Option(None, "--remote", "-r", help="Remote preference"),
+    min_salary: float | None = typer.Option(None, "--min-salary"),
     currency: str = typer.Option("USD", "--currency", "-c"),
     show: bool = typer.Option(False, "--show", help="Show current profile"),
-    from_resume: Optional[Path] = typer.Option(
+    from_resume: Path | None = typer.Option(
         None, "--from-resume", help="Parse resume PDF/DOCX/TXT"
     ),
 ):
@@ -570,27 +560,27 @@ def job_profile_alias(
 @job_app.command("fill")
 def autofill_alias(
     url: str = typer.Argument(..., help="URL of the application form"),
-    profile_json: Optional[Path] = typer.Option(None, "--profile", "-p", help="JSON profile file"),
-    first_name: Optional[str] = typer.Option(None, "--first-name"),
-    last_name: Optional[str] = typer.Option(None, "--last-name"),
-    full_name: Optional[str] = typer.Option(None, "--full-name"),
-    email: Optional[str] = typer.Option(None, "--email"),
-    phone: Optional[str] = typer.Option(None, "--phone"),
-    linkedin: Optional[str] = typer.Option(None, "--linkedin"),
-    github: Optional[str] = typer.Option(None, "--github"),
-    portfolio: Optional[str] = typer.Option(None, "--portfolio"),
-    resume: Optional[Path] = typer.Option(None, "--resume"),
-    cover_letter: Optional[str] = typer.Option(None, "--cover-letter"),
-    salary: Optional[str] = typer.Option(None, "--salary"),
-    location: Optional[str] = typer.Option(None, "--location"),
-    work_auth: Optional[str] = typer.Option(None, "--work-auth"),
-    years_exp: Optional[str] = typer.Option(None, "--years-exp"),
-    education: Optional[str] = typer.Option(None, "--education"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o"),
-    generate_script: Optional[Path] = typer.Option(None, "--generate-script", "-g"),
-    generate_curl: Optional[Path] = typer.Option(None, "--generate-curl"),
+    profile_json: Path | None = typer.Option(None, "--profile", "-p", help="JSON profile file"),
+    first_name: str | None = typer.Option(None, "--first-name"),
+    last_name: str | None = typer.Option(None, "--last-name"),
+    full_name: str | None = typer.Option(None, "--full-name"),
+    email: str | None = typer.Option(None, "--email"),
+    phone: str | None = typer.Option(None, "--phone"),
+    linkedin: str | None = typer.Option(None, "--linkedin"),
+    github: str | None = typer.Option(None, "--github"),
+    portfolio: str | None = typer.Option(None, "--portfolio"),
+    resume: Path | None = typer.Option(None, "--resume"),
+    cover_letter: str | None = typer.Option(None, "--cover-letter"),
+    salary: str | None = typer.Option(None, "--salary"),
+    location: str | None = typer.Option(None, "--location"),
+    work_auth: str | None = typer.Option(None, "--work-auth"),
+    years_exp: str | None = typer.Option(None, "--years-exp"),
+    education: str | None = typer.Option(None, "--education"),
+    output: Path | None = typer.Option(None, "--output", "-o"),
+    generate_script: Path | None = typer.Option(None, "--generate-script", "-g"),
+    generate_curl: Path | None = typer.Option(None, "--generate-curl"),
     use_chrome: bool = typer.Option(False, "--use-chrome"),
-    chrome_profile: Optional[str] = typer.Option(None, "--chrome-profile"),
+    chrome_profile: str | None = typer.Option(None, "--chrome-profile"),
     live: bool = typer.Option(False, "--live", help="Interactive browser mode"),
 ):
     """🤖 Auto-fill application forms — analyze + fill with confidence scoring."""
@@ -624,13 +614,13 @@ def autofill_alias(
 @recon_app.command("dns")
 def recon_dns(
     domain: str = typer.Argument(..., help="Domain to query"),
-    record_type: Optional[str] = typer.Option(
+    record_type: str | None = typer.Option(
         None, "--type", "-t", help="Specific record type (A, AAAA, MX, TXT, NS, CNAME, SOA)"
     ),
-    nameservers: Optional[str] = typer.Option(
+    nameservers: str | None = typer.Option(
         None, "--nameservers", "-n", help="Custom DNS servers (comma-separated)"
     ),
-    reverse: Optional[str] = typer.Option(
+    reverse: str | None = typer.Option(
         None, "--reverse", "-r", help="Reverse DNS lookup for IP"
     ),
 ):
@@ -766,8 +756,8 @@ def recon_subdomains(
     use_bruteforce: bool = typer.Option(
         True, "--bruteforce/--no-bruteforce", help="Use DNS bruteforce"
     ),
-    wordlist: Optional[Path] = typer.Option(None, "--wordlist", "-w", help="Custom wordlist file"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    wordlist: Path | None = typer.Option(None, "--wordlist", "-w", help="Custom wordlist file"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
     max_concurrent: int = typer.Option(50, "--concurrent", "-c", help="Max concurrent DNS queries"),
 ):
     """Discover subdomains."""
@@ -844,14 +834,14 @@ def recon_subdomains(
 @recon_app.command("portscan")
 def recon_portscan(
     target: str = typer.Argument(..., help="Target host/IP"),
-    ports: Optional[str] = typer.Option(
+    ports: str | None = typer.Option(
         None, "--ports", "-p", help="Ports to scan (e.g., 80,443 or 1-1000)"
     ),
     common: bool = typer.Option(False, "--common", "-c", help="Scan common ports only"),
     protocol: str = typer.Option("tcp", "--protocol", help="Protocol: tcp, udp, or both"),
     timeout: float = typer.Option(2.0, "--timeout", "-t", help="Connection timeout in seconds"),
     concurrent: int = typer.Option(100, "--concurrent", help="Max concurrent scans"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Scan ports on target host."""
 
@@ -971,7 +961,7 @@ def web_graphql(
     introspect: bool = typer.Option(
         True, "--introspect/--no-introspect", help="Attempt introspection query"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Discover GraphQL endpoints and introspect schemas."""
 
@@ -1037,7 +1027,7 @@ def web_structured(
     format: str = typer.Option(
         "all", "--format", "-f", help="Format: all, json-ld, opengraph, microdata, twitter"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Extract structured data (JSON-LD, Open Graph, microdata)."""
 
@@ -1114,7 +1104,7 @@ def web_tech(
     check_versions: bool = typer.Option(
         True, "--check-versions/--no-versions", help="Detect library versions"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Enhanced technology detection with versions."""
 
@@ -1192,7 +1182,7 @@ def web_sitemap(
     recursive: bool = typer.Option(
         True, "--recursive/--no-recursive", help="Parse nested sitemaps"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Parse sitemap.xml and extract URLs."""
 
@@ -1264,7 +1254,7 @@ def web_robots(
     show_interesting: bool = typer.Option(
         True, "--show-interesting/--all", help="Show only interesting paths"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Parse robots.txt and find interesting paths."""
 
@@ -1339,7 +1329,7 @@ def web_robots(
 def web_forms(
     url: str = typer.Argument(..., help="URL to scan for forms"),
     crawl_depth: int = typer.Option(1, "--crawl-depth", "-d", help="Crawl depth (1 = single page)"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Discover and analyze HTML forms."""
 
@@ -1421,41 +1411,41 @@ def web_forms(
 @app.command("autofill")
 def autofill(
     url: str = typer.Argument(..., help="URL of the page with the form to fill"),
-    profile_json: Optional[Path] = typer.Option(
+    profile_json: Path | None = typer.Option(
         None, "--profile", "-p", help="JSON profile file with your data"
     ),
-    first_name: Optional[str] = typer.Option(None, "--first-name", help="First name"),
-    last_name: Optional[str] = typer.Option(None, "--last-name", help="Last name"),
-    full_name: Optional[str] = typer.Option(None, "--full-name", help="Full name"),
-    email: Optional[str] = typer.Option(None, "--email", help="Email address"),
-    phone: Optional[str] = typer.Option(None, "--phone", help="Phone number"),
-    linkedin: Optional[str] = typer.Option(None, "--linkedin", help="LinkedIn URL"),
-    github: Optional[str] = typer.Option(None, "--github", help="GitHub URL"),
-    portfolio: Optional[str] = typer.Option(None, "--portfolio", help="Portfolio URL"),
-    resume: Optional[Path] = typer.Option(None, "--resume", help="Path to resume/CV file"),
-    cover_letter: Optional[str] = typer.Option(
+    first_name: str | None = typer.Option(None, "--first-name", help="First name"),
+    last_name: str | None = typer.Option(None, "--last-name", help="Last name"),
+    full_name: str | None = typer.Option(None, "--full-name", help="Full name"),
+    email: str | None = typer.Option(None, "--email", help="Email address"),
+    phone: str | None = typer.Option(None, "--phone", help="Phone number"),
+    linkedin: str | None = typer.Option(None, "--linkedin", help="LinkedIn URL"),
+    github: str | None = typer.Option(None, "--github", help="GitHub URL"),
+    portfolio: str | None = typer.Option(None, "--portfolio", help="Portfolio URL"),
+    resume: Path | None = typer.Option(None, "--resume", help="Path to resume/CV file"),
+    cover_letter: str | None = typer.Option(
         None, "--cover-letter", help="Cover letter text or path"
     ),
-    salary: Optional[str] = typer.Option(
+    salary: str | None = typer.Option(
         None, "--salary", help="Salary expectation (e.g. '$120,000')"
     ),
-    location: Optional[str] = typer.Option(None, "--location", help="Your location (city, state)"),
-    work_auth: Optional[str] = typer.Option(None, "--work-auth", help="Work authorization status"),
-    years_exp: Optional[str] = typer.Option(None, "--years-exp", help="Years of experience"),
-    education: Optional[str] = typer.Option(None, "--education", help="Highest education level"),
-    output: Optional[Path] = typer.Option(
+    location: str | None = typer.Option(None, "--location", help="Your location (city, state)"),
+    work_auth: str | None = typer.Option(None, "--work-auth", help="Work authorization status"),
+    years_exp: str | None = typer.Option(None, "--years-exp", help="Years of experience"),
+    education: str | None = typer.Option(None, "--education", help="Highest education level"),
+    output: Path | None = typer.Option(
         None, "--output", "-o", help="Output file for fill data (JSON)"
     ),
-    generate_script: Optional[Path] = typer.Option(
+    generate_script: Path | None = typer.Option(
         None, "--generate-script", "-g", help="Generate Playwright Python script"
     ),
-    generate_curl: Optional[Path] = typer.Option(
+    generate_curl: Path | None = typer.Option(
         None, "--generate-curl", help="Generate curl commands script"
     ),
     use_chrome: bool = typer.Option(
         False, "--use-chrome", help="Use system Chrome with your profile (cookies, sessions)"
     ),
-    chrome_profile: Optional[str] = typer.Option(
+    chrome_profile: str | None = typer.Option(
         None, "--chrome-profile", help="Path to Chrome user data directory"
     ),
     live: bool = typer.Option(
@@ -1589,8 +1579,6 @@ def autofill(
         for i, result in enumerate(results):
             purpose = result.get("form_purpose") or "unknown"
             platform = result.get("platform") or "generic"
-            coverage = result.get("fill_coverage", 0) * 100
-            fill_data = result.get("fill_data", {})
             fill_items = result.get("fill_results", [])
             conf_summary = result.get("confidence_summary", {})
 
@@ -1603,7 +1591,6 @@ def autofill(
             med_c = conf_summary.get("medium", 0)
             low_c = conf_summary.get("low", 0)
             none_c = conf_summary.get("none", 0)
-            total_f = sum([high_c, med_c, low_c, none_c])
             bars = []
             if high_c:
                 bars.append(f"[green]{'█' * high_c}[/]")
@@ -1677,7 +1664,7 @@ def autofill(
         # Quick tip
         if not output and not generate_script and not generate_curl:
             console.print(
-                f"\n[dim]Tip: Use --output to save fill data, --generate-script for Playwright, or --generate-curl for curl[/]"
+                "\n[dim]Tip: Use --output to save fill data, --generate-script for Playwright, or --generate-curl for curl[/]"
             )
 
     asyncio.run(run())
@@ -1687,14 +1674,14 @@ def autofill(
 @web_app.command("dirs")
 def web_dirs(
     url: str = typer.Argument(..., help="Base URL to brute-force"),
-    wordlist: Optional[str] = typer.Option(
+    wordlist: str | None = typer.Option(
         None, "--wordlist", "-w", help="Wordlist name (common_dirs, api_paths) or path"
     ),
-    extensions: Optional[str] = typer.Option(
+    extensions: str | None = typer.Option(
         None, "--extensions", "-e", help="Extensions to try (comma-separated)"
     ),
     threads: int = typer.Option(10, "--threads", "-t", help="Concurrent threads"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Directory and file brute-forcing."""
 
@@ -1791,7 +1778,7 @@ def web_wellknown(
     resources: str = typer.Option(
         "all", "--resources", "-r", help="Resources to check (all or comma-separated)"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Scan .well-known directory for resources."""
 
@@ -1857,8 +1844,8 @@ def web_wellknown(
 def web_archive(
     url: str = typer.Argument(..., help="URL to query in Wayback Machine"),
     snapshots: int = typer.Option(10, "--snapshots", "-s", help="Max snapshots to retrieve"),
-    from_date: Optional[str] = typer.Option(None, "--from-date", help="From date (YYYY-MM-DD)"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    from_date: str | None = typer.Option(None, "--from-date", help="From date (YYYY-MM-DD)"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
 ):
     """Query Wayback Machine for historical snapshots."""
 
@@ -1941,10 +1928,10 @@ def job_hunt(
     domain: str = typer.Argument(
         None, help="Company domain to scan (e.g. stripe.com). If omitted, searches job boards."
     ),
-    skills: Optional[str] = typer.Option(
+    skills: str | None = typer.Option(
         None, "--skills", "-s", help="Your skills (comma-separated, e.g. 'python,rust,nix')"
     ),
-    titles: Optional[str] = typer.Option(
+    titles: str | None = typer.Option(
         None, "--titles", "-t", help="Desired job titles (comma-separated)"
     ),
     remote: str = typer.Option(
@@ -1953,17 +1940,17 @@ def job_hunt(
         "-r",
         help="Remote preference: remote_only, remote_preferred, hybrid_ok, any",
     ),
-    min_salary: Optional[float] = typer.Option(
+    min_salary: float | None = typer.Option(
         None, "--min-salary", help="Minimum salary (e.g. 80000)"
     ),
     currency: str = typer.Option(
         "USD", "--currency", "-c", help="Preferred currency: USD, EUR, BRL, GBP"
     ),
-    seniority: Optional[str] = typer.Option(
+    seniority: str | None = typer.Option(
         None, "--seniority", help="Target seniority: junior, mid, senior, staff, principal"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
-    save_db: Optional[Path] = typer.Option(
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file (JSON)"),
+    save_db: Path | None = typer.Option(
         None, "--save-db", help="Save to SQLite database for tracking"
     ),
     max_jobs: int = typer.Option(100, "--max", "-m", help="Maximum jobs to return"),
@@ -2137,7 +2124,7 @@ def job_hunt(
         # Show top job detail
         if display_jobs:
             best = display_jobs[0]
-            console.print(f"\n[bold]🏆 Top Match:[/]")
+            console.print("\n[bold]🏆 Top Match:[/]")
             console.print(f"  [green]{best.title}[/] @ [cyan]{best.company}[/]")
             if best.apply_url:
                 console.print(f"  🔗 [dim]{best.apply_url}[/]")
@@ -2156,19 +2143,19 @@ def job_hunt(
 @app.command("job-track")
 def job_track(
     db: Path = typer.Option("jobs.db", "--db", "-d", help="SQLite database path"),
-    job_id: Optional[str] = typer.Option(None, "--id", "-i", help="Job ID to update"),
-    status: Optional[str] = typer.Option(
+    job_id: str | None = typer.Option(None, "--id", "-i", help="Job ID to update"),
+    status: str | None = typer.Option(
         None,
         "--status",
         "-s",
         help="New status: saved, applied, phone_screen, technical, onsite, offer, accepted, rejected, withdrawn",
     ),
-    notes: Optional[str] = typer.Option(None, "--notes", "-n", help="Add notes to application"),
-    list_status: Optional[str] = typer.Option(
+    notes: str | None = typer.Option(None, "--notes", "-n", help="Add notes to application"),
+    list_status: str | None = typer.Option(
         None, "--list", "-l", help="List applications by status"
     ),
     summary: bool = typer.Option(False, "--summary", help="Show pipeline summary"),
-    export_json: Optional[Path] = typer.Option(
+    export_json: Path | None = typer.Option(
         None, "--export", "-e", help="Export applications to JSON"
     ),
 ):
@@ -2259,15 +2246,15 @@ def job_track(
 @app.command("job-profile")
 def job_profile(
     db: Path = typer.Option("jobs.db", "--db", "-d", help="SQLite database path"),
-    skills: Optional[str] = typer.Option(
+    skills: str | None = typer.Option(
         None, "--skills", "-s", help="Your skills (comma-separated)"
     ),
-    titles: Optional[str] = typer.Option(None, "--titles", "-t", help="Desired job titles"),
-    remote: Optional[str] = typer.Option(None, "--remote", "-r", help="Remote preference"),
-    min_salary: Optional[float] = typer.Option(None, "--min-salary", help="Minimum salary"),
+    titles: str | None = typer.Option(None, "--titles", "-t", help="Desired job titles"),
+    remote: str | None = typer.Option(None, "--remote", "-r", help="Remote preference"),
+    min_salary: float | None = typer.Option(None, "--min-salary", help="Minimum salary"),
     currency: str = typer.Option("USD", "--currency", "-c", help="Currency"),
     show: bool = typer.Option(False, "--show", help="Show current profile"),
-    from_resume: Optional[Path] = typer.Option(
+    from_resume: Path | None = typer.Option(
         None, "--from-resume", help="Parse resume PDF/DOCX/TXT and populate profile"
     ),
 ):
@@ -2379,7 +2366,7 @@ def job_profile(
             if job_count > 0:
                 console.print(f"\n[yellow]📊 You have {job_count} jobs in the database.[/]")
                 console.print(
-                    f"[yellow]   Run 'spider job-track --summary' to see your pipeline.[/]"
+                    "[yellow]   Run 'spider job-track --summary' to see your pipeline.[/]"
                 )
 
         finally:
@@ -2429,10 +2416,10 @@ def presets():
 def advanced_crawl(
     url: str = typer.Argument(..., help="URL to crawl"),
     pages: int = typer.Option(10, "--pages", "-p", help="Max pages to crawl"),
-    preset: Optional[str] = typer.Option(
+    preset: str | None = typer.Option(
         None, "--preset", help="Config preset (run 'presets' to see options)"
     ),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
+    output: str | None = typer.Option(None, "--output", "-o", help="Output file path"),
     format: str = typer.Option("json", "--format", "-f", help="Output format: json, csv, sqlite"),
     follow: bool = typer.Option(False, "--follow", "-F", help="Follow links on pages"),
     monitor: bool = typer.Option(True, "--monitor", help="Show real-time monitoring"),
@@ -2449,7 +2436,7 @@ def advanced_crawl(
             console.print(f"[cyan]Using preset: {preset}[/]")
         except ValueError as e:
             console.print(f"[red]Error: {e}[/]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
     else:
         config = CrawlerConfig()
 
@@ -2585,7 +2572,7 @@ if __name__ == "__main__":
 def multimodal_extract(
     url: str = typer.Argument(..., help="Target URL"),
     output: Path = typer.Option("extraction.json", "--output", "-o", help="Output JSON file"),
-    screenshot: Optional[Path] = typer.Option(
+    screenshot: Path | None = typer.Option(
         None, "--screenshot", "-s", help="Save screenshot path"
     ),
     headless: bool = typer.Option(True, "--headless", help="Run browser headless"),

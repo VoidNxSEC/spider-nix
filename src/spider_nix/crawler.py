@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Callable
+from collections.abc import Callable
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -117,7 +117,7 @@ class SpiderNix:
             while self._running:
                 try:
                     url = await asyncio.wait_for(self._queue.get(), timeout=2)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
 
                 try:
@@ -139,9 +139,8 @@ class SpiderNix:
                         if follow_links and result.status_code == 200:
                             links = self._extract_links(result.content, url)
                             for link in links:
-                                if link not in self._visited:
-                                    if link_filter is None or link_filter(link):
-                                        await self._queue.put(link)
+                                if link not in self._visited and (link_filter is None or link_filter(link)):
+                                    await self._queue.put(link)
 
                 finally:
                     self._queue.task_done()
