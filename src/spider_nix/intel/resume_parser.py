@@ -7,11 +7,11 @@ and form auto-filling.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -150,9 +150,8 @@ def read_pdf(path: Path) -> str:
         logger.debug(f"pdfplumber failed: {e}")
 
     # Last resort: read raw bytes and extract ASCII strings
-    try:
+    with contextlib.suppress(Exception):
         raw = path.read_bytes()
-        # Extract printable ASCII sequences
         text = ""
         current = []
         for byte in raw:
@@ -165,8 +164,6 @@ def read_pdf(path: Path) -> str:
         if current:
             text += "".join(current)
         return text
-    except Exception:
-        pass
 
     return ""
 
@@ -175,7 +172,8 @@ def read_docx(path: Path) -> str:
     """Extract text from a DOCX file (ZIP of XML)."""
     try:
         import zipfile
-        from xml.etree import ElementTree as ET
+
+        import defusedxml.ElementTree as ET
 
         with zipfile.ZipFile(str(path)) as z:
             if "word/document.xml" not in z.namelist():
@@ -185,7 +183,6 @@ def read_docx(path: Path) -> str:
             root = ET.fromstring(xml_content)
 
             # Extract all text from <w:t> elements
-            ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
             paragraphs = []
             for p in root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p"):
                 texts = []
@@ -428,7 +425,7 @@ def extract_current_position(text: str) -> tuple[str, str]:
     experience_section = False
     most_recent_lines: list[str] = []
 
-    for i, line in enumerate(lines):
+    for _, line in enumerate(lines):
         line_lower = line.lower().strip()
 
         # Detect experience section
@@ -514,9 +511,7 @@ def extract_education(text: str) -> list[str]:
             continue
 
         if edu_section and line.strip():
-            if any(kw in line_lower for kw in degree_keywords):
-                education.append(line.strip())
-            elif (
+            if any(kw in line_lower for kw in degree_keywords) or (
                 "university" in line_lower
                 or "universidade" in line_lower
                 or "college" in line_lower

@@ -7,9 +7,9 @@ set interview dates, and monitor your progress.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 from spider_nix.intel.job_storage import JobStorage
@@ -135,10 +135,8 @@ class ApplicationTracker:
         current_status = ApplicationStatus.SAVED
         for app in apps:
             if app["job_id"] == job_id:
-                try:
+                with contextlib.suppress(ValueError):
                     current_status = ApplicationStatus(app["status"])
-                except ValueError:
-                    pass
                 break
 
         # Validate transition

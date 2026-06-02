@@ -8,19 +8,16 @@ Each scraper knows the URL structure of these platforms and can extract structur
 from __future__ import annotations
 
 import asyncio
-import json
+import contextlib
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
-from urllib.parse import urljoin, urlparse
 
 import httpx
 
 from spider_nix.intel.jobs import (
     JobOpportunity,
     JobSource,
-    Salary,
     extract_employment_type,
     extract_remote_policy,
     extract_salary,
@@ -189,11 +186,7 @@ class GreenhouseScraper(BaseATSScraper):
         metadata = job.get("metadata", [])
         desc_parts = []
         for m in metadata:
-            if m.get("name") == "Job Description":
-                desc_parts.append(m.get("value", ""))
-            elif m.get("name") == "Responsibilities":
-                desc_parts.append(m.get("value", ""))
-            elif m.get("name") == "Requirements":
+            if m.get("name") == "Job Description" or m.get("name") == "Responsibilities" or m.get("name") == "Requirements":
                 desc_parts.append(m.get("value", ""))
 
         description = "\n\n".join(desc_parts)
@@ -589,12 +582,10 @@ class CareerPageDiscoverer:
                 return url
         except Exception:
             # Try GET if HEAD fails
-            try:
+            with contextlib.suppress(Exception):
                 resp = await client.get(url, timeout=10.0)
                 if resp.status_code < 400:
                     return url
-            except Exception:
-                pass
         return None
 
 

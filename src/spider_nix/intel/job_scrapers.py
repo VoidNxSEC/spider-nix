@@ -10,10 +10,10 @@ Scrapes popular tech job boards:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import re
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 import httpx
 
@@ -21,7 +21,6 @@ from spider_nix.intel.jobs import (
     JobOpportunity,
     JobSource,
     Salary,
-    extract_employment_type,
     extract_remote_policy,
     extract_salary,
     extract_seniority,
@@ -157,12 +156,10 @@ class RemoteOKScraper:
                 date_posted = None
                 epoch = item.get("epoch", item.get("date"))
                 if epoch:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         date_posted = datetime.fromtimestamp(
-                            int(epoch), tz=timezone.utc
+                            int(epoch), tz=UTC
                         ).isoformat()
-                    except (ValueError, TypeError):
-                        pass
 
                 full_text = f"{title} {description} {' '.join(tags)}"
 
@@ -520,7 +517,7 @@ class HNHiringScraper:
             tech_stack=tech_stack,
             seniority=extract_seniority(text),
             salary=salary,
-            date_posted=datetime.fromtimestamp(comment.get("time", 0), tz=timezone.utc).isoformat()
+            date_posted=datetime.fromtimestamp(comment.get("time", 0), tz=UTC).isoformat()
             if comment.get("time")
             else None,
             raw_data=comment,

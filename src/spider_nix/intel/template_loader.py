@@ -43,8 +43,6 @@ def _parse_simple_yaml(path: Path) -> dict[str, Any]:
     result: dict[str, Any] = {"platform": "", "url_patterns": [], "flags": {}, "fields": {}}
     current_section: str | None = None
     current_field: str | None = None
-    current_list: list[str] = []
-
     for line in text.split("\n"):
         stripped = line.strip()
 

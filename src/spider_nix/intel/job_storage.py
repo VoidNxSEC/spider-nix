@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -302,7 +302,7 @@ class JobStorage:
     ) -> bool:
         """Create or update an application for a job."""
         conn = await self._ensure_conn()
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         try:
             applied_date = now if status == ApplicationStatus.APPLIED else None

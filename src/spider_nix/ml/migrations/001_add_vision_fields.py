@@ -10,8 +10,9 @@ Run: python -m spider_nix.ml.migrations.001_add_vision_fields
 """
 
 import asyncio
-import aiosqlite
 from pathlib import Path
+
+import aiosqlite
 
 
 async def migrate(db_path: str | Path = "feedback.db"):

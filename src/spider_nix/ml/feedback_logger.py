@@ -1,9 +1,10 @@
 """Feedback logger for storing crawl attempts and learning."""
 
-import aiosqlite
 import json
 from pathlib import Path
 from typing import Any
+
+import aiosqlite
 
 from .models import CrawlAttempt, Strategy, StrategyEffectiveness
 

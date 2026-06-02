@@ -367,11 +367,7 @@ class FailureClassifier:
         if len(body) < 200 and has_block_keyword:
             return True
 
-        # Strong indicators even with normal size
-        if "access denied" in body_lower or "access restricted" in body_lower:
-            return True
-
-        return False
+        return "access denied" in body_lower or "access restricted" in body_lower
 
     def _detect_waf(self, headers: dict[str, str]) -> str | None:
         """Detect Web Application Firewall."""

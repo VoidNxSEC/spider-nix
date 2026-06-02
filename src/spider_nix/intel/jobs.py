@@ -7,11 +7,12 @@ and the foundation for multi-source aggregation, matching, and tracking.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -19,7 +20,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 
-class EmploymentType(str, Enum):
+class EmploymentType(StrEnum):
     FULL_TIME = "full_time"
     PART_TIME = "part_time"
     CONTRACT = "contract"
@@ -28,14 +29,14 @@ class EmploymentType(str, Enum):
     COOP = "coop"
 
 
-class RemotePolicy(str, Enum):
+class RemotePolicy(StrEnum):
     REMOTE = "remote"
     HYBRID = "hybrid"
     ON_SITE = "on_site"
     UNKNOWN = "unknown"
 
 
-class Seniority(str, Enum):
+class Seniority(StrEnum):
     INTERN = "intern"
     JUNIOR = "junior"
     MID = "mid"
@@ -50,7 +51,7 @@ class Seniority(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ApplicationStatus(str, Enum):
+class ApplicationStatus(StrEnum):
     SAVED = "saved"
     APPLIED = "applied"
     PHONE_SCREEN = "phone_screen"
@@ -63,7 +64,7 @@ class ApplicationStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class JobSource(str, Enum):
+class JobSource(StrEnum):
     GREENHOUSE = "greenhouse"
     LEVER = "lever"
     ASHBY = "ashby"
@@ -178,7 +179,7 @@ class JobOpportunity:
 
     # Timestamps
     date_posted: str | None = None
-    date_found: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    date_found: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     # Metadata
     company_profile: CompanyProfile | None = None
@@ -234,10 +235,8 @@ class JobOpportunity:
                     "seniority": Seniority,
                     "source": JobSource,
                 }[field_name]
-                try:
+                with contextlib.suppress(ValueError):
                     data[field_name] = enum_cls(data[field_name])
-                except ValueError:
-                    pass  # keep as-is
 
         return cls(salary=salary, company_profile=company, **data)
 

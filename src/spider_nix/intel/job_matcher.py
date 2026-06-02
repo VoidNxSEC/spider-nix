@@ -8,8 +8,9 @@ remote policy preference, and salary expectations.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from spider_nix.intel.jobs import (
@@ -24,7 +25,7 @@ from spider_nix.intel.jobs import (
 # ---------------------------------------------------------------------------
 
 
-class PreferredRemote(str, Enum):
+class PreferredRemote(StrEnum):
     REMOTE_ONLY = "remote_only"
     REMOTE_PREFERRED = "remote_preferred"
     HYBRID_OK = "hybrid_ok"
@@ -93,10 +94,8 @@ class JobSeekerProfile:
         target_seniority = []
         for s in target_sen:
             if isinstance(s, str):
-                try:
+                with contextlib.suppress(ValueError):
                     target_seniority.append(Seniority(s))
-                except ValueError:
-                    pass
             elif isinstance(s, Seniority):
                 target_seniority.append(s)
 

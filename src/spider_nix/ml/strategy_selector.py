@@ -14,11 +14,10 @@ Strategies:
 """
 
 import random
-from typing import Dict
 
 import aiosqlite
 
-from .models import Strategy, FailureClass
+from .models import FailureClass, Strategy
 
 
 class StrategySelector:
@@ -44,7 +43,7 @@ class StrategySelector:
         self.db_path = db_path
 
         # Strategy statistics: {domain: {strategy: {"success": int, "failure": int}}}
-        self.strategy_stats: Dict[str, Dict[Strategy, dict]] = {}
+        self.strategy_stats: dict[str, dict[Strategy, dict]] = {}
 
         # Default strategy (used for new domains)
         self.default_strategy = Strategy.TLS_FINGERPRINT_ROTATION
@@ -64,9 +63,9 @@ class StrategySelector:
             self._initialize_domain(domain)
 
         # Epsilon-greedy decision
-        if random.random() < self.epsilon:
+        if random.random() < self.epsilon:  # nosec B311
             # EXPLORE: Random strategy
-            return random.choice(list(Strategy))
+            return random.choice(list(Strategy))  # nosec B311
         else:
             # EXPLOIT: Best strategy
             return self._best_strategy(domain)
@@ -158,7 +157,7 @@ class StrategySelector:
             for strategy in Strategy
         }
 
-    def get_domain_stats(self, domain: str) -> Dict:
+    def get_domain_stats(self, domain: str) -> dict:
         """
         Get statistics for a specific domain.
 
@@ -210,9 +209,9 @@ class StrategySelector:
                 best_strategies.append(strategy)
 
         # If multiple strategies have same score, pick randomly
-        return random.choice(best_strategies) if best_strategies else self.default_strategy
+        return random.choice(best_strategies) if best_strategies else self.default_strategy  # nosec B311
 
-    def get_stats(self, domain: str | None = None) -> Dict:
+    def get_stats(self, domain: str | None = None) -> dict:
         """
         Get strategy statistics for domain or all domains.
 
@@ -269,8 +268,7 @@ class StrategySelector:
                         # Unknown strategy in DB (skip)
                         continue
 
-        except Exception:
-            # DB doesn't exist yet or error reading
+        except Exception:  # nosec B110
             pass
 
     async def save_to_db(self):
@@ -293,7 +291,7 @@ class StrategySelector:
 
             await db.commit()
 
-    def get_domain_recommendation(self, domain: str) -> Dict[str, any]:
+    def get_domain_recommendation(self, domain: str) -> dict[str, any]:
         """
         Get recommendation for domain.
 

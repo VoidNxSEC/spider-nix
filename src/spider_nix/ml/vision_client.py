@@ -8,11 +8,10 @@ and element detection via the ml-offload-api REST endpoint.
 import base64
 import re
 from pathlib import Path
-from typing import List
 
 import httpx
 
-from ..extraction.models import VisionDetection, BoundingBox
+from ..extraction.models import BoundingBox, VisionDetection
 
 
 class VisionClient:
@@ -82,14 +81,14 @@ class VisionClient:
             self.model_loaded = True
             self.current_model = model_id
         except Exception as e:
-            raise RuntimeError(f"Failed to load model {model_id}: {e}")
+            raise RuntimeError(f"Failed to load model {model_id}: {e}") from e
 
     async def analyze_screenshot(
         self,
         screenshot_path: Path,
         prompt: str | None = None,
         model_id: str = "llava-v1.5-7b-q4",
-    ) -> List[VisionDetection]:
+    ) -> list[VisionDetection]:
         """
         Analyze screenshot with vision model to detect interactive elements.
 
@@ -149,7 +148,7 @@ class VisionClient:
             )
             response.raise_for_status()
         except Exception as e:
-            raise RuntimeError(f"Vision inference failed: {e}")
+            raise RuntimeError(f"Vision inference failed: {e}") from e
 
         # Parse response
         result = response.json()
@@ -158,7 +157,7 @@ class VisionClient:
         # Parse structured output into VisionDetection objects
         return self._parse_vision_output(content, model_id)
 
-    def _parse_vision_output(self, output: str, model_id: str) -> List[VisionDetection]:
+    def _parse_vision_output(self, output: str, model_id: str) -> list[VisionDetection]:
         """
         Parse model output into structured VisionDetection objects.
 
@@ -206,8 +205,8 @@ class VisionClient:
         return detections
 
     async def analyze_with_clip(
-        self, screenshot_path: Path, element_types: List[str] | None = None
-    ) -> List[VisionDetection]:
+        self, screenshot_path: Path, element_types: list[str] | None = None
+    ) -> list[VisionDetection]:
         """
         Alternative: Use CLIP for zero-shot element classification.
 
@@ -248,7 +247,7 @@ class VisionClient:
         except Exception:
             return False
 
-    async def get_available_models(self) -> List[dict]:
+    async def get_available_models(self) -> list[dict]:
         """
         Get list of available vision models.
 
@@ -260,7 +259,7 @@ class VisionClient:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            raise RuntimeError(f"Failed to get models: {e}")
+            raise RuntimeError(f"Failed to get models: {e}") from e
 
     async def close(self):
         """Close HTTP client."""

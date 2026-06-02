@@ -8,15 +8,15 @@ ATS-specific field templates for higher accuracy on Greenhouse, Lever, etc.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from spider_nix.intel.template_loader import detect_platform_from_url, load_template
-from spider_nix.osint.web_discovery import FormAnalysis, FormAnalyzer, FormField
+from spider_nix.osint.web_discovery import FormAnalyzer, FormField
 
 logger = logging.getLogger(__name__)
 
@@ -398,7 +398,6 @@ class ConfidenceFieldMatcher:
         name = field.name.lower().strip()
         label = (field.label_text or "").lower().strip()
         placeholder = (field.placeholder or "").lower().strip()
-        ftype = field.field_type.lower()
         combined = f"{name} {label} {placeholder}"
 
         # Strategy 1: ATS template (highest confidence)
@@ -540,21 +539,21 @@ class FormAutoFiller:
             fill_results: list[FillResult] = []
             fill_data: dict[str, str] = {}
 
-            for field in form.fields:
-                match = matcher.match(field)
+            for form_field in form.fields:
+                match = matcher.match(form_field)
 
                 if match and match.confidence >= self.CONFIDENCE_THRESHOLDS["low"]:
-                    value = self._get_profile_value(match.profile_attr, field)
+                    value = self._get_profile_value(match.profile_attr, form_field)
                     match.value = value
 
                     if match.confidence >= self.CONFIDENCE_THRESHOLDS["medium"] and value:
-                        fill_data[field.name] = value
+                        fill_data[form_field.name] = value
 
                 fill_results.append(
                     FillResult(
-                        field_name=field.name,
-                        field_label=field.label_text,
-                        field_type=field.field_type,
+                        field_name=form_field.name,
+                        field_label=form_field.label_text,
+                        field_type=form_field.field_type,
                         value=match.value if match else None,
                         confidence=match.confidence if match else 0.0,
                         matched_by=match.matched_by if match else "none",
@@ -952,7 +951,7 @@ class LiveFormFiller:
                 launch_args["channel"] = "chrome"
                 if self.chrome_user_data_dir:
                     launch_args["args"].append(f"--user-data-dir={self.chrome_user_data_dir}")
-                print(f"   Using system Chrome")
+                print("   Using system Chrome")
                 if self.chrome_user_data_dir:
                     print(f"   Profile: {self.chrome_user_data_dir}")
             else:
@@ -999,21 +998,19 @@ class LiveFormFiller:
                     except Exception as e:
                         logger.debug(f"Could not fill '{name}': {e}")
                         # Try select
-                        try:
+                        with contextlib.suppress(Exception):
                             await page.select_option(f'[name="{name}"]', value, timeout=2000)
                             if conf >= 0.8:
                                 await self._mark_field(page, name, "high")
                             elif conf >= 0.5:
                                 await self._mark_field(page, name, "medium")
-                        except Exception:
-                            pass
 
             # Step 6: Pause for user review
             print("\n" + "=" * 50)
             print("👀 Review the form in the browser.")
-            print(f"   🟢 Green  = auto-filled (high confidence)")
-            print(f"   🟡 Yellow = auto-filled (review recommended)")
-            print(f"   🔴 Red    = needs manual input")
+            print("   🟢 Green  = auto-filled (high confidence)")
+            print("   🟡 Yellow = auto-filled (review recommended)")
+            print("   🔴 Red    = needs manual input")
             print()
             print("   Press [Enter] to submit all forms")
             print("   Press [S]     to skip submission (keep browser open)")
@@ -1067,7 +1064,7 @@ class LiveFormFiller:
         }
         css_class = class_map.get(level, "")
         if css_class:
-            try:
+            with contextlib.suppress(Exception):
                 await page.evaluate(
                     f"""
                     (function() {{
@@ -1083,8 +1080,6 @@ class LiveFormFiller:
                     }})();
                     """
                 )
-            except Exception:
-                pass
 
 
 async def live_fill_url(

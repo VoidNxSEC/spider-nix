@@ -2,11 +2,11 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class FailureClass(str, Enum):
+class FailureClass(StrEnum):
     """Classification of crawl failures."""
 
     SUCCESS = "success"
@@ -20,7 +20,7 @@ class FailureClass(str, Enum):
     UNKNOWN = "unknown"
 
 
-class Strategy(str, Enum):
+class Strategy(StrEnum):
     """Available evasion strategies."""
 
     TLS_FINGERPRINT_ROTATION = "tls_fingerprint_rotation"
