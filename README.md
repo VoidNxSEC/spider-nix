@@ -8,9 +8,9 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Nix](https://img.shields.io/badge/builtwith-nix-5277C3.svg?logo=nixos)](https://nixos.org)
 
-**Professional Job Hunt Toolkit — find, match, track, and auto-fill job applications**
+**Spider-Nix JobOps — local-first job search automation for technical candidates**
 
-[Quick Start](#quick-start) • [Job Hunt](#-job-hunt) • [Auto-Fill](#-auto-fill) • [Web GUI](#-web-gui) • [Architecture](#-architecture)
+[Quick Start](#quick-start) • [JobOps](#jobops) • [Job Hunt](#-job-hunt) • [Auto-Fill](#-auto-fill) • [Privacy](#privacy-model) • [Web GUI](#-web-gui)
 
 </div>
 
@@ -18,7 +18,9 @@
 
 ## What is this?
 
-Spider-Nix is a **complete job search automation system**. It finds jobs across multiple sources, scores them against your profile, tracks your application pipeline, and can even auto-fill application forms in your browser.
+Spider-Nix is a **local-first JobOps toolkit** for engineers and technical job seekers. It finds roles across public ATS/job sources, scores them against your profile, tracks your application pipeline, and helps fill repetitive forms while keeping review and control in your hands.
+
+This is not a mass-apply bot. Spider-Nix is built for high-signal job hunting: private data ownership, programmable workflows, transparent matching, and user-reviewed automation.
 
 - **🔍 Multi-source job search**: Greenhouse, Lever, Ashby, RemoteOK, WeWorkRemotely, HackerNews
 - **🎯 Smart matching**: 5-dimension scoring (skills, seniority, location, salary, title)
@@ -27,6 +29,21 @@ Spider-Nix is a **complete job search automation system**. It finds jobs across 
 - **🖥️ Live mode**: Open browser, fill forms interactively with visual feedback
 - **📄 Resume parser**: Auto-extract name, email, skills, experience from PDF/DOCX/TXT
 - **🌐 Web GUI**: FastAPI + Alpine.js dashboard (zero node_modules)
+- **🔒 Local-first workflow**: SQLite storage, local profile data, exportable records, optional browser automation
+
+---
+
+## JobOps
+
+Spider-Nix treats a job search like an operating workflow:
+
+1. **Hunt**: pull roles from ATS platforms and job boards.
+2. **Match**: rank jobs against a technical profile and explain the score.
+3. **Track**: manage every opportunity through a pipeline.
+4. **Fill**: reduce repetitive form entry with confidence-based review.
+5. **Improve**: use source quality, response rates, notes, and outcomes to refine the search.
+
+The default workflow is local: your profile, resume-derived data, notes, and application history live in your workspace database unless you explicitly export or sync them yourself.
 
 ---
 
@@ -52,6 +69,21 @@ spider job fill https://jobs.lever.co/company/position --live --use-chrome
 # Launch web GUI
 spider serve
 ```
+
+---
+
+## Privacy Model
+
+Spider-Nix is designed around user control:
+
+- profile and pipeline data are stored locally in SQLite by default;
+- job matching runs locally against your configured profile;
+- autofill uses confidence scoring and pauses for user review in live mode;
+- sensitive fields can be left manual instead of filled automatically;
+- exports are explicit JSON/database files controlled by the user;
+- the project does not require a hosted account for the core workflow.
+
+For the longer policy and trust boundary, see [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ---
 

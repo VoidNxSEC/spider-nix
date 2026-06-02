@@ -228,7 +228,7 @@
 
           meta = with pkgs.lib; {
             description = "Enterprise web crawler for public data collection";
-            license = licenses.mit;
+            license = licenses.apache;
             platforms = platforms.linux;
           };
         };

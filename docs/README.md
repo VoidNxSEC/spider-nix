@@ -7,6 +7,7 @@
 | [README.md](../README.md) | Project overview, quick start, features |
 | [GUI_DESIGN.md](GUI_DESIGN.md) | Web GUI architecture and design |
 | [example.md](example.md) | Usage examples |
+| [PRIVACY.md](PRIVACY.md) | Local-first privacy and trust model |
 
 ## Development
 
@@ -18,6 +19,7 @@
 | [TESTING.md](TESTING.md) | Testing guide |
 | [SECURITY.md](SECURITY.md) | Security policy |
 | [ADVANCED_FEATURES.md](ADVANCED_FEATURES.md) | Advanced feature documentation |
+| [JOB_HUNT_MONETIZATION_PLAN.md](JOB_HUNT_MONETIZATION_PLAN.md) | Product and monetization plan for JobOps |
 
 ## Archive
 
