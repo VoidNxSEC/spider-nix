@@ -385,20 +385,20 @@ async def monitor_example():
             # Simulate different outcomes
             import random
 
-            outcome = random.choice(["success", "blocked", "failed"])
+            outcome = random.choice(["success", "blocked", "failed"])  # nosec B311
 
             if outcome == "success":
                 monitor.update(
                     url=f"https://example.com/page{i}",
                     status_code=200,
-                    response_time_ms=random.uniform(100, 2000),
+                    response_time_ms=random.uniform(100, 2000),  # nosec B311
                     success=True,
-                    bytes_downloaded=random.randint(1000, 50000),
+                    bytes_downloaded=random.randint(1000, 50000),  # nosec B311
                 )
             elif outcome == "blocked":
                 monitor.update(
                     status_code=429,
-                    response_time_ms=random.uniform(50, 500),
+                    response_time_ms=random.uniform(50, 500),  # nosec B311
                     blocked=True,
                 )
             else:
@@ -409,8 +409,8 @@ async def monitor_example():
 
             # Update rate limiter
             monitor.update_rate_limiter(
-                delay_ms=random.uniform(100, 1000),
-                backpressure=random.random() > 0.8,
+                delay_ms=random.uniform(100, 1000),  # nosec B311
+                backpressure=random.random() > 0.8,  # nosec B311
             )
 
     finally:

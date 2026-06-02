@@ -1,7 +1,7 @@
 """Browser-based crawler using Playwright for JavaScript-heavy sites."""
 
 import asyncio
-from typing import Callable
+from collections.abc import Callable
 
 from rich.console import Console
 
@@ -196,9 +196,8 @@ class BrowserCrawler:
                         if follow_links and result.status_code == 200:
                             links = await self._extract_links(page, url)
                             for link in links:
-                                if link not in visited:
-                                    if link_filter is None or link_filter(link):
-                                        queue.append(link)
+                                if link not in visited and (link_filter is None or link_filter(link)):
+                                    queue.append(link)
 
                         # Human-like delay
                         if self.config.stealth.human_like_delays:
