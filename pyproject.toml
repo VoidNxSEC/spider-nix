@@ -4,15 +4,19 @@ build-backend = "hatchling.build"
 
 [project]
 name = "spider-nix"
-version = "0.2.0"
-description = "Enterprise web crawler for public data collection"
+version = "0.0.1"
+description = "Security Tooling"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [
-  { name = "VoidNXLabs" },
+  { name = "marcosfpina" },
 ]
 keywords = [
+  "job-search",
+  "job-tracker",
+  "autofill",
+  "ats",
   "crawler",
   "osint",
   "scraping",
