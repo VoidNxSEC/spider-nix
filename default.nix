@@ -1,37 +1,41 @@
-{ pkgs ? import <nixpkgs> { } }:
+{
+  pkgs ? import <nixpkgs> { },
+}:
 
 let
-  pythonEnv = pkgs.python313.withPackages (ps: with ps; [
-    # Core crawling
-    httpx
-    aiohttp
-    aiosqlite
-    pydantic
+  pythonEnv = pkgs.python313.withPackages (
+    ps: with ps; [
+      # Core crawling
+      httpx
+      aiohttp
+      aiosqlite
+      pydantic
 
-    # OSINT
-    aiodns
-    pycares
-    python-whois
+      # OSINT
+      aiodns
+      pycares
+      python-whois
 
-    # CLI
-    typer
-    rich
+      # CLI
+      typer
+      rich
 
-    # Utils
-    fake-useragent
+      # Utils
+      fake-useragent
 
-    # Dev
-    pytest
-    pytest-asyncio
-    pytest-cov
-    pytest-httpx
-    ruff
-    mypy
-    bandit
-    build
-    defusedxml
-    pip
-  ]);
+      # Dev
+      pytest
+      pytest-asyncio
+      pytest-cov
+      pytest-httpx
+      ruff
+      mypy
+      bandit
+      build
+      defusedxml
+      pip
+    ]
+  );
 in
 pkgs.mkShell {
   name = "spider-nix-dev";

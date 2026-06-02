@@ -211,7 +211,7 @@
           '';
         };
 
-        formatter = pkgs.nixfmt;
+        formatter = pkgs.nixfmt-tree;
 
         packages.default = pkgs.python313Packages.buildPythonApplication {
           pname = "spider-nix";
