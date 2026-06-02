@@ -1,5 +1,6 @@
 """Proxy rotation engine for SpiderNix."""
 
+import contextlib
 import random
 from dataclasses import dataclass, field
 from typing import Literal
@@ -83,7 +84,7 @@ class ProxyRotator:
             return healthy[self._current_index]
 
         elif self.strategy == "random":
-            return random.choice(healthy)
+            return random.choice(healthy)  # nosec B311
 
         elif self.strategy == "least_used":
             return min(healthy, key=lambda p: self._stats[p].requests)
@@ -167,14 +168,12 @@ async def fetch_public_proxies() -> list[str]:
     proxies = []
     async with httpx.AsyncClient(timeout=10) as client:
         for url in PUBLIC_PROXY_SOURCES:
-            try:
+            with contextlib.suppress(Exception):
                 resp = await client.get(url)
                 if resp.status_code == 200:
                     for line in resp.text.splitlines():
                         line = line.strip()
                         if line and ":" in line:
                             proxies.append(f"http://{line}")
-            except Exception:
-                pass
 
     return list(set(proxies))  # Dedupe

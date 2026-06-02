@@ -2,8 +2,8 @@
 
 import random
 from typing import Any
-from fake_useragent import UserAgent
 
+from fake_useragent import UserAgent
 
 # Pool of realistic browser fingerprints
 # Expanded with MacBook, 4K, and ultrawide resolutions
@@ -76,7 +76,7 @@ class StealthEngine:
     """Generate realistic browser fingerprints to avoid detection."""
 
     def __init__(self, seed: int | None = None):
-        self._rng = random.Random(seed)
+        self._rng = random.Random(seed)  # nosec B311
         self._ua = UserAgent(browsers=["chrome", "firefox", "edge"])
 
         # Per-session noise factors (not per-request)
@@ -128,10 +128,7 @@ class StealthEngine:
             platform = self._rng.choice(["Win32", "Linux x86_64"])
 
         # Realistic pixel ratios
-        if platform == "MacIntel":
-            pixel_ratio = 2.0  # Retina displays
-        else:
-            pixel_ratio = self._rng.choice([1, 1.25, 1.5, 2])
+        pixel_ratio = 2.0 if platform == "MacIntel" else self._rng.choice([1, 1.25, 1.5, 2])
 
         return {
             "screen": {

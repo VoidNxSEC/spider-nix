@@ -4,9 +4,9 @@ import asyncio
 import hashlib
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 

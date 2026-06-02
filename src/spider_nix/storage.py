@@ -1,12 +1,13 @@
 """Data storage and export for SpiderNix."""
 
-import json
 import csv
-import aiosqlite
+import json
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+
+import aiosqlite
 
 
 @dataclass
@@ -18,7 +19,7 @@ class CrawlResult:
     content: str
     headers: dict[str, str] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -140,7 +141,7 @@ class SqliteStorage(StorageBackend):
             (query, limit),
         )
         rows = await cursor.fetchall()
-        return [dict(zip([d[0] for d in cursor.description], row)) for row in rows]
+        return [dict(zip([d[0] for d in cursor.description], row, strict=False)) for row in rows]
 
     async def close(self) -> None:
         if self._conn:
