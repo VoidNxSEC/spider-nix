@@ -228,14 +228,14 @@
 
           meta = with pkgs.lib; {
             description = "Enterprise web crawler for public data collection";
-            license = licenses.apache;
+            license = licenses.mit;
             platforms = platforms.linux;
           };
         };
 
         packages.spider-network-proxy = pkgs.buildGoModule {
           pname = "spider-network-proxy";
-          version = "0.2.0";
+          version = "0.0.1";
 
           src = ./network;
 
