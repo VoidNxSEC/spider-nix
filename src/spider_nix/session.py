@@ -193,9 +193,7 @@ class SessionManager:
 
             # Set expiry
             if self.session_ttl_minutes > 0:
-                session.expires_at = datetime.now() + timedelta(
-                    minutes=self.session_ttl_minutes
-                )
+                session.expires_at = datetime.now() + timedelta(minutes=self.session_ttl_minutes)
 
             self.sessions[session_id] = session
             console.print(f"[green]✓[/] Session '{session_id}' created")
@@ -284,9 +282,7 @@ class SessionManager:
 
             # Check expiry
             if session.is_expired():
-                console.print(
-                    f"[yellow]⚠[/] Session '{session_id}' expired"
-                )
+                console.print(f"[yellow]⚠[/] Session '{session_id}' expired")
 
                 # Auto-refresh if enabled
                 if self.auto_refresh and "login_url" in session.metadata:
@@ -303,9 +299,7 @@ class SessionManager:
                 if time_left and time_left.total_seconds() < (
                     self.refresh_before_expiry_minutes * 60
                 ):
-                    console.print(
-                        f"[yellow]⚠[/] Session '{session_id}' expiring soon"
-                    )
+                    console.print(f"[yellow]⚠[/] Session '{session_id}' expiring soon")
 
             return session
 
@@ -338,9 +332,7 @@ class SessionManager:
         return {
             session_id: {
                 "created_at": session.created_at.isoformat(),
-                "expires_at": session.expires_at.isoformat()
-                if session.expires_at
-                else None,
+                "expires_at": session.expires_at.isoformat() if session.expires_at else None,
                 "is_expired": session.is_expired(),
                 "cookies_count": len(session.cookies),
                 "tokens_count": len(session.tokens),

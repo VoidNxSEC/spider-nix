@@ -100,9 +100,7 @@ class HTMLReportGenerator:
             "success_rate": (successful / len(results) * 100) if results else 0,
             "status_codes": dict(status_codes),
             "response_times": response_times,
-            "avg_response_time": sum(response_times) / len(response_times)
-            if response_times
-            else 0,
+            "avg_response_time": sum(response_times) / len(response_times) if response_times else 0,
             "domains": dict(domains.most_common(10)),
             "timeline": dict(sorted(timeline.items())),
             "stats": stats,
@@ -154,20 +152,22 @@ class HTMLReportGenerator:
     def _render_summary(self, analysis: dict[str, Any]) -> str:
         """Render summary section."""
         success_rate = analysis["success_rate"]
-        success_class = "success" if success_rate >= 80 else "warning" if success_rate >= 60 else "danger"
+        success_class = (
+            "success" if success_rate >= 80 else "warning" if success_rate >= 60 else "danger"
+        )
 
         html = f"""
         <div class="stat-card">
             <h3>Total Requests</h3>
-            <div class="stat-value">{analysis['total']}</div>
+            <div class="stat-value">{analysis["total"]}</div>
         </div>
         <div class="stat-card">
             <h3>Successful</h3>
-            <div class="stat-value success">{analysis['successful']}</div>
+            <div class="stat-value success">{analysis["successful"]}</div>
         </div>
         <div class="stat-card">
             <h3>Failed</h3>
-            <div class="stat-value danger">{analysis['failed']}</div>
+            <div class="stat-value danger">{analysis["failed"]}</div>
         </div>
         <div class="stat-card">
             <h3>Success Rate</h3>
@@ -175,7 +175,7 @@ class HTMLReportGenerator:
         </div>
         <div class="stat-card">
             <h3>Avg Response Time</h3>
-            <div class="stat-value">{analysis['avg_response_time']:.0f}ms</div>
+            <div class="stat-value">{analysis["avg_response_time"]:.0f}ms</div>
         </div>
         """
 
@@ -215,7 +215,13 @@ class HTMLReportGenerator:
         """
 
         for r in results:
-            status_class = "success" if 200 <= r.status_code < 300 else "warning" if 300 <= r.status_code < 400 else "danger"
+            status_class = (
+                "success"
+                if 200 <= r.status_code < 300
+                else "warning"
+                if 300 <= r.status_code < 400
+                else "danger"
+            )
             elapsed = r.metadata.get("elapsed_ms", 0)
             size = len(r.content) if r.content else 0
             size_kb = size / 1024
@@ -226,7 +232,7 @@ class HTMLReportGenerator:
                     <td class="{status_class}">{r.status_code}</td>
                     <td>{elapsed:.0f}ms</td>
                     <td>{size_kb:.1f} KB</td>
-                    <td>{r.timestamp[:19] if r.timestamp else 'N/A'}</td>
+                    <td>{r.timestamp[:19] if r.timestamp else "N/A"}</td>
                 </tr>
             """
 

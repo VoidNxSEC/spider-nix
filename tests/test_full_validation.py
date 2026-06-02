@@ -40,7 +40,7 @@ class TestFullIntegration:
     @pytest.mark.asyncio
     async def test_content_analysis_workflow(self):
         """Test content analysis workflow."""
-        html = '''
+        html = """
         <html>
         <head><title>Test Site</title></head>
         <body>
@@ -49,7 +49,7 @@ class TestFullIntegration:
         Contact: info@example.com
         </body>
         </html>
-        '''
+        """
 
         headers = {
             "Server": "nginx/1.18.0",

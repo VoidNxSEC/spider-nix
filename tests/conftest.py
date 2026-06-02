@@ -13,6 +13,7 @@ def pytest_collection_modifyitems(items):
         if "httpx_mock" in getattr(item, "fixturenames", ()):
             item.add_marker(marker)
 
+
 @pytest.fixture
 def mock_aioresponse():
     with pytest.raises(ImportError):
@@ -20,6 +21,7 @@ def mock_aioresponse():
     # If we had aioresponses, we would use it here.
     # For now, we will rely on unittest.mock
     pass
+
 
 @pytest.fixture
 def mock_response():

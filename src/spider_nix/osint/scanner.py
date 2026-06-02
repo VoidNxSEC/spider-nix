@@ -177,9 +177,7 @@ class PortScanner:
                 sock.settimeout(self.timeout)
 
                 # Send empty datagram
-                await asyncio.get_event_loop().sock_sendto(
-                    sock, b"", (host, port)
-                )
+                await asyncio.get_event_loop().sock_sendto(sock, b"", (host, port))
 
                 # Try to receive response
                 try:
@@ -295,6 +293,7 @@ class PortScanner:
 
         # Generic version pattern (e.g., "service/1.2.3")
         import re
+
         version_match = re.search(r"[\w\-]+[/\s](\d+\.[\d\.]+)", banner)
         if version_match:
             return version_match.group(0)

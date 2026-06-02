@@ -41,11 +41,15 @@ class SpiderNix:
         self.stealth = StealthEngine()
 
         # Advanced features
-        self.rate_limiter = AdaptiveRateLimiter(
-            initial_delay_ms=self.config.stealth.min_delay_ms,
-            min_delay_ms=self.config.stealth.min_delay_ms,
-            max_delay_ms=self.config.stealth.max_delay_ms,
-        ) if enable_adaptive_rate_limiting else None
+        self.rate_limiter = (
+            AdaptiveRateLimiter(
+                initial_delay_ms=self.config.stealth.min_delay_ms,
+                min_delay_ms=self.config.stealth.min_delay_ms,
+                max_delay_ms=self.config.stealth.max_delay_ms,
+            )
+            if enable_adaptive_rate_limiting
+            else None
+        )
 
         self.circuit_breaker = CircuitBreaker() if enable_circuit_breaker else None
         self.deduplicator = RequestDeduplicator() if enable_deduplication else None
@@ -54,7 +58,7 @@ class SpiderNix:
         self._queue: asyncio.Queue[str] = asyncio.Queue()
         self._results: list[CrawlResult] = []
         self._running = False
-    
+
     async def crawl(
         self,
         start_url: str,
@@ -65,7 +69,7 @@ class SpiderNix:
     ) -> list[CrawlResult]:
         """
         Crawl starting from a URL.
-        
+
         Args:
             start_url: Starting URL
             max_pages: Max pages to crawl (overrides config)
@@ -77,29 +81,27 @@ class SpiderNix:
         self._running = True
         self._visited.clear()
         self._results.clear()
-        
+
         await self._queue.put(start_url)
-        
+
         tasks = []
         for _ in range(self.config.max_concurrent_requests):
-            task = asyncio.create_task(
-                self._worker(max_pages, follow_links, link_filter, storage)
-            )
+            task = asyncio.create_task(self._worker(max_pages, follow_links, link_filter, storage))
             tasks.append(task)
-        
+
         # Wait for queue to empty
         await self._queue.join()
         self._running = False
-        
+
         # Cancel workers
         for task in tasks:
             task.cancel()
-        
+
         if storage:
             await storage.close()
-        
+
         return self._results
-    
+
     async def _worker(
         self,
         max_pages: int,
@@ -117,22 +119,22 @@ class SpiderNix:
                     url = await asyncio.wait_for(self._queue.get(), timeout=2)
                 except asyncio.TimeoutError:
                     continue
-                
+
                 try:
                     if url in self._visited or len(self._visited) >= max_pages:
                         continue
-                    
+
                     self._visited.add(url)
                     result = await self._fetch_with_retry(client, url)
-                    
+
                     if result:
                         self._results.append(result)
-                        
+
                         if storage:
                             await storage.save(result)
-                        
+
                         console.print(f"[green]✓[/] {url} ({result.status_code})")
-                        
+
                         # Follow links
                         if follow_links and result.status_code == 200:
                             links = self._extract_links(result.content, url)
@@ -140,10 +142,10 @@ class SpiderNix:
                                 if link not in self._visited:
                                     if link_filter is None or link_filter(link):
                                         await self._queue.put(link)
-                    
+
                 finally:
                     self._queue.task_done()
-    
+
     async def _fetch_with_retry(
         self,
         client: httpx.AsyncClient,
@@ -255,10 +257,13 @@ class SpiderNix:
 
             # Human-like delay before retry
             if self.config.stealth.human_like_delays:
-                delay = self.stealth.get_random_delay_ms(
-                    self.config.stealth.min_delay_ms,
-                    self.config.stealth.max_delay_ms,
-                ) / 1000
+                delay = (
+                    self.stealth.get_random_delay_ms(
+                        self.config.stealth.min_delay_ms,
+                        self.config.stealth.max_delay_ms,
+                    )
+                    / 1000
+                )
                 await asyncio.sleep(delay)
 
             raise httpx.RequestError(f"Blocked with status {response.status_code}")
@@ -277,15 +282,19 @@ class SpiderNix:
                 "elapsed_ms": elapsed_ms,
                 "proxy": proxy_url,
                 "attempt": attempt + 1,
-                "rate_limit_delay_ms": self.rate_limiter.current_delay_ms if self.rate_limiter else 0,
-                "circuit_state": self.circuit_breaker.get_state().value if self.circuit_breaker else "none",
-            }
+                "rate_limit_delay_ms": self.rate_limiter.current_delay_ms
+                if self.rate_limiter
+                else 0,
+                "circuit_state": self.circuit_breaker.get_state().value
+                if self.circuit_breaker
+                else "none",
+            },
         )
-    
+
     def _extract_links(self, html: str, base_url: str) -> list[str]:
         """Extract links from HTML."""
         import re
-        
+
         links = []
         for match in re.finditer(r'href=["\']([^"\']+)["\']', html):
             href = match.group(1)
@@ -294,7 +303,7 @@ class SpiderNix:
             # Only same domain
             if urlparse(full_url).netloc == urlparse(base_url).netloc:
                 links.append(full_url)
-        
+
         return list(set(links))
 
 

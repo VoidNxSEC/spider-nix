@@ -24,12 +24,7 @@ class TestStrategySelectionBasic:
         strategy = Strategy.TLS_FINGERPRINT_ROTATION
 
         # Update with success
-        selector.update(
-            domain=domain,
-            strategy=strategy,
-            success=True,
-            response_time_ms=100.0
-        )
+        selector.update(domain=domain, strategy=strategy, success=True, response_time_ms=100.0)
 
         # Stats should be updated
         stats = selector.get_stats()

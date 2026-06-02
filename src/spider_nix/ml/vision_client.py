@@ -18,7 +18,7 @@ from ..extraction.models import VisionDetection, BoundingBox
 class VisionClient:
     """
     Client for ml-offload-api vision inference.
-    
+
     Supports:
     - LLaVA (multimodal vision-language model)
     - CLIP (zero-shot image classification)
@@ -28,7 +28,7 @@ class VisionClient:
     def __init__(self, api_url: str = "http://localhost:9000", timeout: float = 120.0):
         """
         Initialize vision client.
-        
+
         Args:
             api_url: ml-offload-api base URL
             timeout: Request timeout in seconds (vision models are slow)
@@ -41,7 +41,7 @@ class VisionClient:
     async def ensure_model_loaded(self, model_id: str = "llava-v1.5-7b-q4"):
         """
         Load vision model if not already loaded.
-        
+
         Args:
             model_id: Model identifier (e.g., "llava-v1.5-7b-q4", "openai-clip-vit-b32")
         """
@@ -76,7 +76,7 @@ class VisionClient:
                 json={
                     "model_name": model_id,
                     "backend": "llamacpp",  # llama.cpp supports vision models
-                }
+                },
             )
             load_response.raise_for_status()
             self.model_loaded = True
@@ -92,12 +92,12 @@ class VisionClient:
     ) -> List[VisionDetection]:
         """
         Analyze screenshot with vision model to detect interactive elements.
-        
+
         Args:
             screenshot_path: Path to screenshot PNG/JPEG
             prompt: Custom prompt (uses default if None)
             model_id: Vision model to use
-            
+
         Returns:
             List of detected elements with bounding boxes
         """
@@ -112,10 +112,10 @@ class VisionClient:
                 "2. Bounding box coordinates as (x, y, width, height) normalized to 0-1\n"
                 "3. Visible text content (if any)\n\n"
                 "Format each detection as:\n"
-                "TYPE at (X, Y, W, H) - \"Text\"\n\n"
+                'TYPE at (X, Y, W, H) - "Text"\n\n'
                 "Example:\n"
-                "button at (0.5, 0.3, 0.1, 0.05) - \"Submit\"\n"
-                "link at (0.1, 0.9, 0.15, 0.02) - \"Privacy Policy\""
+                'button at (0.5, 0.3, 0.1, 0.05) - "Submit"\n'
+                'link at (0.1, 0.9, 0.15, 0.02) - "Privacy Policy"'
             )
 
         # Read screenshot
@@ -123,7 +123,7 @@ class VisionClient:
             screenshot_bytes = f.read()
 
         # Encode as base64 for OpenAI-compatible API
-        image_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+        image_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
 
         # Send to ml-offload-api (OpenAI-compatible endpoint)
         try:
@@ -138,16 +138,14 @@ class VisionClient:
                                 {"type": "text", "text": prompt},
                                 {
                                     "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/png;base64,{image_b64}"
-                                    }
-                                }
-                            ]
+                                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                                },
+                            ],
                         }
                     ],
                     "max_tokens": 2000,
                     "temperature": 0.1,  # Low temp for consistent structured output
-                }
+                },
             )
             response.raise_for_status()
         except Exception as e:
@@ -163,7 +161,7 @@ class VisionClient:
     def _parse_vision_output(self, output: str, model_id: str) -> List[VisionDetection]:
         """
         Parse model output into structured VisionDetection objects.
-        
+
         Expected format from model:
         ```
         button at (0.5, 0.3, 0.1, 0.05) - "Submit"
@@ -197,7 +195,7 @@ class VisionClient:
                     text=text if text else None,
                     ocr_confidence=0.9 if text else None,
                     model_id=model_id,
-                    attributes={}
+                    attributes={},
                 )
                 detections.append(detection)
 
@@ -208,25 +206,23 @@ class VisionClient:
         return detections
 
     async def analyze_with_clip(
-        self,
-        screenshot_path: Path,
-        element_types: List[str] | None = None
+        self, screenshot_path: Path, element_types: List[str] | None = None
     ) -> List[VisionDetection]:
         """
         Alternative: Use CLIP for zero-shot element classification.
-        
+
         Strategy:
         1. Segment screenshot into grid (e.g., 10x10 cells)
         2. For each cell, classify with CLIP: "a button", "a link", etc.
         3. Merge adjacent cells of same type into bounding boxes
-        
+
         Args:
             screenshot_path: Path to screenshot
             element_types: Types to detect (default: button, link, input, image)
-            
+
         Returns:
             List of detected elements
-            
+
         Note: This is a simpler alternative when LLaVA is unavailable.
         Currently returns empty list (TODO: implement grid-based CLIP classification).
         """
@@ -242,7 +238,7 @@ class VisionClient:
     async def health_check(self) -> bool:
         """
         Check if ml-offload-api is reachable and healthy.
-        
+
         Returns:
             True if API is healthy
         """
@@ -255,7 +251,7 @@ class VisionClient:
     async def get_available_models(self) -> List[dict]:
         """
         Get list of available vision models.
-        
+
         Returns:
             List of model metadata dicts
         """

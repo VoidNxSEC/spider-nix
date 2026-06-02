@@ -9,17 +9,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 
-@dataclass 
+@dataclass
 class CrawlResult:
     """Single crawl result."""
-    
+
     url: str
     status_code: int
     content: str
     headers: dict[str, str] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "url": self.url,
@@ -33,25 +33,25 @@ class CrawlResult:
 
 class StorageBackend:
     """Base storage backend."""
-    
+
     async def save(self, result: CrawlResult) -> None:
         raise NotImplementedError
-    
+
     async def save_batch(self, results: list[CrawlResult]) -> None:
         for result in results:
             await self.save(result)
-    
+
     async def close(self) -> None:
         pass
 
 
 class JsonStorage(StorageBackend):
     """Store results as JSON lines."""
-    
+
     def __init__(self, filepath: str | Path):
         self.filepath = Path(filepath)
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
-    
+
     async def save(self, result: CrawlResult) -> None:
         with open(self.filepath, "a") as f:
             f.write(json.dumps(result.to_dict()) + "\n")
@@ -59,12 +59,12 @@ class JsonStorage(StorageBackend):
 
 class CsvStorage(StorageBackend):
     """Store results as CSV."""
-    
+
     def __init__(self, filepath: str | Path):
         self.filepath = Path(filepath)
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
         self._headers_written = self.filepath.exists()
-    
+
     async def save(self, result: CrawlResult) -> None:
         data = result.to_dict()
         # Flatten nested dicts
@@ -74,7 +74,7 @@ class CsvStorage(StorageBackend):
             "content_length": len(data["content"]),
             "timestamp": data["timestamp"],
         }
-        
+
         with open(self.filepath, "a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=flat.keys())
             if not self._headers_written:
@@ -85,12 +85,12 @@ class CsvStorage(StorageBackend):
 
 class SqliteStorage(StorageBackend):
     """Store results in SQLite with FTS5 search."""
-    
+
     def __init__(self, filepath: str | Path):
         self.filepath = Path(filepath)
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
         self._conn: aiosqlite.Connection | None = None
-    
+
     async def _ensure_connection(self) -> aiosqlite.Connection:
         if self._conn is None:
             self._conn = await aiosqlite.connect(self.filepath)
@@ -112,7 +112,7 @@ class SqliteStorage(StorageBackend):
             """)
             await self._conn.commit()
         return self._conn
-    
+
     async def save(self, result: CrawlResult) -> None:
         conn = await self._ensure_connection()
         await conn.execute(
@@ -125,10 +125,10 @@ class SqliteStorage(StorageBackend):
                 json.dumps(result.headers),
                 json.dumps(result.metadata),
                 result.timestamp,
-            )
+            ),
         )
         await conn.commit()
-    
+
     async def search(self, query: str, limit: int = 100) -> list[dict]:
         """Full-text search across crawl results."""
         conn = await self._ensure_connection()
@@ -137,11 +137,11 @@ class SqliteStorage(StorageBackend):
                JOIN crawl_fts f ON r.id = f.rowid
                WHERE crawl_fts MATCH ?
                LIMIT ?""",
-            (query, limit)
+            (query, limit),
         )
         rows = await cursor.fetchall()
         return [dict(zip([d[0] for d in cursor.description], row)) for row in rows]
-    
+
     async def close(self) -> None:
         if self._conn:
             await self._conn.close()
@@ -151,7 +151,7 @@ class SqliteStorage(StorageBackend):
 def get_storage(output_path: str, format: str = "json") -> StorageBackend:
     """Factory to create storage backend."""
     path = Path(output_path)
-    
+
     if format == "json":
         return JsonStorage(path.with_suffix(".jsonl"))
     elif format == "csv":

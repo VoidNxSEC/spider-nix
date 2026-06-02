@@ -6,7 +6,7 @@ from typing import Literal
 
 class ProxyConfig(BaseModel):
     """Proxy rotation configuration."""
-    
+
     urls: list[str] = Field(default_factory=list)
     rotate_on_block: bool = True
     rotation_strategy: Literal["round_robin", "random", "least_used"] = "random"
@@ -215,9 +215,7 @@ def get_preset(name: str) -> CrawlerConfig:
     """
     if name not in PRESETS:
         available = ", ".join(PRESETS.keys())
-        raise ValueError(
-            f"Invalid preset '{name}'. Available presets: {available}"
-        )
+        raise ValueError(f"Invalid preset '{name}'. Available presets: {available}")
     return PRESETS[name]
 
 

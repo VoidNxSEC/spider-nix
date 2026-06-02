@@ -77,7 +77,10 @@ class IntelligenceGraph:
     def add_relationship(self, relationship: Relationship) -> None:
         """Add relationship to graph."""
         # Ensure both entities exist
-        if relationship.source_id not in self.entities or relationship.target_id not in self.entities:
+        if (
+            relationship.source_id not in self.entities
+            or relationship.target_id not in self.entities
+        ):
             logger.warning(
                 f"Cannot add relationship: entities {relationship.source_id} "
                 f"or {relationship.target_id} not found"
@@ -732,7 +735,9 @@ class CorrelationEngine:
             "generated_at": datetime.now().isoformat(),
             "statistics": stats,
             "vulnerable_count": len(vulnerable_entities),
-            "top_technologies": dict(sorted(tech_usage.items(), key=lambda x: x[1], reverse=True)[:10]),
+            "top_technologies": dict(
+                sorted(tech_usage.items(), key=lambda x: x[1], reverse=True)[:10]
+            ),
             "graph_export": {
                 "json_available": True,
                 "graphviz_available": True,

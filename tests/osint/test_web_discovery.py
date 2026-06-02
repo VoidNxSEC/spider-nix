@@ -255,7 +255,9 @@ class TestDirectoryBruteforcer:
     @pytest.mark.asyncio
     async def test_bruteforce_basic(self, httpx_mock):
         """Test basic directory brute-forcing."""
-        httpx_mock.add_response(url="https://example.com/admin", status_code=200, text="Admin Panel")
+        httpx_mock.add_response(
+            url="https://example.com/admin", status_code=200, text="Admin Panel"
+        )
         httpx_mock.add_response(url="https://example.com/api", status_code=404)
         httpx_mock.add_response(url="https://example.com/backup", status_code=403)
 
@@ -401,11 +403,7 @@ class TestWellKnownScanner:
     @pytest.mark.asyncio
     async def test_parse_json_resource(self, httpx_mock):
         """Test parsing JSON well-known resources."""
-        json_data = {
-            "related_applications": [
-                {"platform": "play", "id": "com.example.app"}
-            ]
-        }
+        json_data = {"related_applications": [{"platform": "play", "id": "com.example.app"}]}
 
         httpx_mock.add_response(
             url="https://example.com/.well-known/assetlinks.json",

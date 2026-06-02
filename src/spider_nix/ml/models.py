@@ -8,6 +8,7 @@ from typing import Any
 
 class FailureClass(str, Enum):
     """Classification of crawl failures."""
+
     SUCCESS = "success"
     RATE_LIMIT = "rate_limit"
     FINGERPRINT_DETECTED = "fingerprint_detected"
@@ -21,6 +22,7 @@ class FailureClass(str, Enum):
 
 class Strategy(str, Enum):
     """Available evasion strategies."""
+
     TLS_FINGERPRINT_ROTATION = "tls_fingerprint_rotation"
     PROXY_ROTATION = "proxy_rotation"
     BROWSER_MODE = "browser_mode"
@@ -46,6 +48,7 @@ class CrawlAttempt:
         timestamp: When attempt was made
         metadata: Additional context
     """
+
     url: str
     domain: str
     status_code: int
@@ -86,6 +89,7 @@ class StrategyEffectiveness:
         avg_response_time_ms: Average response time
         last_updated: Last update timestamp
     """
+
     domain: str
     strategy: Strategy
     success_count: int = 0
@@ -119,6 +123,6 @@ class StrategyEffectiveness:
         # Update rolling average response time
         total = self.total_attempts
         self.avg_response_time_ms = (
-            (self.avg_response_time_ms * (total - 1) + response_time_ms) / total
-        )
+            self.avg_response_time_ms * (total - 1) + response_time_ms
+        ) / total
         self.last_updated = datetime.utcnow()

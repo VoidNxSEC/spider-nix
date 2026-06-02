@@ -146,9 +146,7 @@ class FeedbackLogger:
 
             await db.commit()
 
-    async def get_strategy_effectiveness(
-        self, domain: str
-    ) -> list[StrategyEffectiveness]:
+    async def get_strategy_effectiveness(self, domain: str) -> list[StrategyEffectiveness]:
         """Get strategy effectiveness for a domain.
 
         Args:
@@ -294,15 +292,11 @@ class FeedbackLogger:
             successes = (await cursor.fetchone())[0]
 
             # Unique domains
-            cursor = await db.execute(
-                "SELECT COUNT(DISTINCT domain) FROM crawl_attempts"
-            )
+            cursor = await db.execute("SELECT COUNT(DISTINCT domain) FROM crawl_attempts")
             domains = (await cursor.fetchone())[0]
 
             # Average response time
-            cursor = await db.execute(
-                "SELECT AVG(response_time_ms) FROM crawl_attempts"
-            )
+            cursor = await db.execute("SELECT AVG(response_time_ms) FROM crawl_attempts")
             avg_time = (await cursor.fetchone())[0] or 0.0
 
             return {

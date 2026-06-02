@@ -119,20 +119,24 @@ class TestSubdomainEnumerator:
     @pytest.mark.asyncio
     async def test_crt_sh_lookup(self):
         """Test Certificate Transparency subdomain discovery."""
-        with unittest.mock.patch("httpx.AsyncClient.get", new_callable=unittest.mock.AsyncMock) as mock_get:
+        with unittest.mock.patch(
+            "httpx.AsyncClient.get", new_callable=unittest.mock.AsyncMock
+        ) as mock_get:
             # Mock response
             mock_response = unittest.mock.Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = [
                 {"name_value": "www.google.com"},
                 {"name_value": "*.mail.google.com"},
-                {"name_value": "test.google.com"}
+                {"name_value": "test.google.com"},
             ]
             mock_get.return_value = mock_response
 
             # Mock DNS resolution to avoid network calls there too
-            with unittest.mock.patch("spider_nix.osint.reconnaissance.DNSResolver.query_a") as mock_dns:
-                 # Mock DNS response for the IPs
+            with unittest.mock.patch(
+                "spider_nix.osint.reconnaissance.DNSResolver.query_a"
+            ) as mock_dns:
+                # Mock DNS response for the IPs
                 mock_record = unittest.mock.Mock()
                 mock_record.value = "1.2.3.4"
                 mock_dns.return_value = [mock_record]
@@ -162,13 +166,17 @@ class TestSubdomainEnumerator:
     @pytest.mark.asyncio
     async def test_enumerate_combined(self):
         """Test combined enumeration (CRT + bruteforce)."""
-        with unittest.mock.patch("httpx.AsyncClient.get", new_callable=unittest.mock.AsyncMock) as mock_get:
+        with unittest.mock.patch(
+            "httpx.AsyncClient.get", new_callable=unittest.mock.AsyncMock
+        ) as mock_get:
             mock_response = unittest.mock.Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = [{"name_value": "crt.google.com"}]
             mock_get.return_value = mock_response
 
-            with unittest.mock.patch("spider_nix.osint.reconnaissance.DNSResolver.query_a") as mock_dns:
+            with unittest.mock.patch(
+                "spider_nix.osint.reconnaissance.DNSResolver.query_a"
+            ) as mock_dns:
                 mock_record = unittest.mock.Mock()
                 mock_record.value = "1.2.3.4"
                 mock_dns.return_value = [mock_record]
@@ -191,13 +199,17 @@ class TestSubdomainEnumerator:
     @pytest.mark.asyncio
     async def test_enumerate_crt_only(self):
         """Test enumeration with only Certificate Transparency."""
-        with unittest.mock.patch("httpx.AsyncClient.get", new_callable=unittest.mock.AsyncMock) as mock_get:
+        with unittest.mock.patch(
+            "httpx.AsyncClient.get", new_callable=unittest.mock.AsyncMock
+        ) as mock_get:
             mock_response = unittest.mock.Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = [{"name_value": "www.google.com"}]
             mock_get.return_value = mock_response
 
-            with unittest.mock.patch("spider_nix.osint.reconnaissance.DNSResolver.query_a") as mock_dns:
+            with unittest.mock.patch(
+                "spider_nix.osint.reconnaissance.DNSResolver.query_a"
+            ) as mock_dns:
                 mock_record = unittest.mock.Mock()
                 mock_record.value = "1.2.3.4"
                 mock_dns.return_value = [mock_record]

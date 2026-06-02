@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 class CircuitState(Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"  # Normal operation
     OPEN = "open"  # Failing, reject requests
     HALF_OPEN = "half_open"  # Testing if recovered
@@ -20,6 +21,7 @@ class CircuitState(Enum):
 @dataclass
 class RateLimitStats:
     """Statistics for adaptive rate limiting."""
+
     requests_sent: int = 0
     requests_success: int = 0
     requests_blocked: int = 0
@@ -32,6 +34,7 @@ class RateLimitStats:
 @dataclass
 class CircuitBreakerConfig:
     """Circuit breaker configuration."""
+
     failure_threshold: int = 5  # Failures before opening
     success_threshold: int = 2  # Successes in half-open to close
     timeout_seconds: float = 60.0  # Time before half-open retry
@@ -114,6 +117,7 @@ class CircuitBreaker:
 
 class CircuitBreakerError(Exception):
     """Raised when circuit breaker is open."""
+
     pass
 
 
@@ -179,7 +183,9 @@ class AdaptiveRateLimiter:
 
             # Update average response time
             if self._response_times:
-                self.stats.avg_response_time_ms = sum(self._response_times) / len(self._response_times)
+                self.stats.avg_response_time_ms = sum(self._response_times) / len(
+                    self._response_times
+                )
 
             # Detect backpressure
             await self._detect_backpressure()
@@ -202,8 +208,7 @@ class AdaptiveRateLimiter:
         avg_time = sum(recent_times) / len(recent_times)
 
         self.stats.backpressure_detected = (
-            error_rate > self.backpressure_threshold or
-            avg_time > self.response_time_threshold_ms
+            error_rate > self.backpressure_threshold or avg_time > self.response_time_threshold_ms
         )
 
     async def _adjust_rate(self):
@@ -290,14 +295,16 @@ class RequestDeduplicator:
             netloc = netloc[:-4]
 
         # Reconstruct without fragment
-        normalized = urlunparse((
-            scheme,
-            netloc,
-            parsed.path or "/",
-            parsed.params,
-            sorted_query,
-            "",  # No fragment
-        ))
+        normalized = urlunparse(
+            (
+                scheme,
+                netloc,
+                parsed.path or "/",
+                parsed.params,
+                sorted_query,
+                "",  # No fragment
+            )
+        )
 
         return normalized
 
@@ -321,7 +328,7 @@ class RequestDeduplicator:
             if len(self._url_cache) > self.max_cache_size:
                 # Remove oldest 10%
                 sorted_items = sorted(self._url_cache.items(), key=lambda x: x[1])
-                for url_to_remove, _ in sorted_items[:self.max_cache_size // 10]:
+                for url_to_remove, _ in sorted_items[: self.max_cache_size // 10]:
                     del self._url_cache[url_to_remove]
 
             return False
@@ -341,7 +348,7 @@ class RequestDeduplicator:
             # Prevent cache from growing too large
             if len(self._content_cache) > self.max_cache_size:
                 sorted_items = sorted(self._content_cache.items(), key=lambda x: x[1])
-                for hash_to_remove, _ in sorted_items[:self.max_cache_size // 10]:
+                for hash_to_remove, _ in sorted_items[: self.max_cache_size // 10]:
                     del self._content_cache[hash_to_remove]
 
             return False
@@ -352,7 +359,8 @@ class RequestDeduplicator:
 
         # Clean URL cache
         expired_urls = [
-            url for url, timestamp in self._url_cache.items()
+            url
+            for url, timestamp in self._url_cache.items()
             if current_time - timestamp > self.ttl_seconds
         ]
         for url in expired_urls:
@@ -360,7 +368,8 @@ class RequestDeduplicator:
 
         # Clean content cache
         expired_content = [
-            hash_val for hash_val, timestamp in self._content_cache.items()
+            hash_val
+            for hash_val, timestamp in self._content_cache.items()
             if current_time - timestamp > self.ttl_seconds
         ]
         for hash_val in expired_content:

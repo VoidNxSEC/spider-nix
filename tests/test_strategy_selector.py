@@ -33,7 +33,7 @@ class TestStrategySelection:
                 domain=domain,
                 strategy=strategy,
                 failure_class=FailureClass.SUCCESS,
-                response_time_ms=100.0
+                response_time_ms=100.0,
             )
 
         # Check stats were updated
@@ -55,7 +55,7 @@ class TestStrategySelection:
                 domain=domain,
                 strategy=strategy,
                 failure_class=FailureClass.RATE_LIMIT,
-                response_time_ms=50.0
+                response_time_ms=50.0,
             )
 
         stats = selector.strategy_stats[domain][strategy]
@@ -71,23 +71,20 @@ class TestStrategySelection:
         # Make TLS_FINGERPRINT_ROTATION very successful
         for _ in range(20):
             selector.record_attempt(
-                domain, Strategy.TLS_FINGERPRINT_ROTATION,
-                FailureClass.SUCCESS, 100.0
+                domain, Strategy.TLS_FINGERPRINT_ROTATION, FailureClass.SUCCESS, 100.0
             )
 
         # Make PROXY_ROTATION fail
         for _ in range(10):
-            selector.record_attempt(
-                domain, Strategy.PROXY_ROTATION,
-                FailureClass.RATE_LIMIT, 200.0
-            )
+            selector.record_attempt(domain, Strategy.PROXY_ROTATION, FailureClass.RATE_LIMIT, 200.0)
 
         # Should consistently pick TLS_FINGERPRINT_ROTATION
         selected_strategies = [selector.select_strategy(domain) for _ in range(10)]
 
         # All should be TLS_FINGERPRINT_ROTATION
-        assert all(s == Strategy.TLS_FINGERPRINT_ROTATION for s in selected_strategies), \
+        assert all(s == Strategy.TLS_FINGERPRINT_ROTATION for s in selected_strategies), (
             "Should exploit best strategy when epsilon=0"
+        )
 
     def test_exploration_with_epsilon(self):
         """Test that exploration happens with epsilon > 0."""
@@ -98,8 +95,7 @@ class TestStrategySelection:
         # Make one strategy clearly better
         for _ in range(50):
             selector.record_attempt(
-                domain, Strategy.TLS_FINGERPRINT_ROTATION,
-                FailureClass.SUCCESS, 100.0
+                domain, Strategy.TLS_FINGERPRINT_ROTATION, FailureClass.SUCCESS, 100.0
             )
 
         # With epsilon=1.0, should still explore (random selection)
@@ -116,15 +112,13 @@ class TestStrategySelection:
         # Domain A: TLS rotation works
         for _ in range(10):
             selector.record_attempt(
-                "domainA.com", Strategy.TLS_FINGERPRINT_ROTATION,
-                FailureClass.SUCCESS, 100.0
+                "domainA.com", Strategy.TLS_FINGERPRINT_ROTATION, FailureClass.SUCCESS, 100.0
             )
 
         # Domain B: Proxy rotation works
         for _ in range(10):
             selector.record_attempt(
-                "domainB.com", Strategy.PROXY_ROTATION,
-                FailureClass.SUCCESS, 100.0
+                "domainB.com", Strategy.PROXY_ROTATION, FailureClass.SUCCESS, 100.0
             )
 
         # Should select different strategies for each domain
@@ -139,10 +133,7 @@ class TestStrategySelection:
         selector = StrategySelector()
 
         domain = "example.com"
-        selector.record_attempt(
-            domain, Strategy.BROWSER_MODE,
-            FailureClass.SUCCESS, 150.0
-        )
+        selector.record_attempt(domain, Strategy.BROWSER_MODE, FailureClass.SUCCESS, 150.0)
 
         stats = selector.get_domain_stats(domain)
 
@@ -203,25 +194,21 @@ class TestConvergence:
             # TLS rotation (80% success)
             if i % 10 < 8:
                 selector.record_attempt(
-                    domain, Strategy.TLS_FINGERPRINT_ROTATION,
-                    FailureClass.SUCCESS, 100.0
+                    domain, Strategy.TLS_FINGERPRINT_ROTATION, FailureClass.SUCCESS, 100.0
                 )
             else:
                 selector.record_attempt(
-                    domain, Strategy.TLS_FINGERPRINT_ROTATION,
-                    FailureClass.RATE_LIMIT, 100.0
+                    domain, Strategy.TLS_FINGERPRINT_ROTATION, FailureClass.RATE_LIMIT, 100.0
                 )
 
             # Proxy rotation (30% success)
             if i % 10 < 3:
                 selector.record_attempt(
-                    domain, Strategy.PROXY_ROTATION,
-                    FailureClass.SUCCESS, 100.0
+                    domain, Strategy.PROXY_ROTATION, FailureClass.SUCCESS, 100.0
                 )
             else:
                 selector.record_attempt(
-                    domain, Strategy.PROXY_ROTATION,
-                    FailureClass.FINGERPRINT_DETECTED, 100.0
+                    domain, Strategy.PROXY_ROTATION, FailureClass.FINGERPRINT_DETECTED, 100.0
                 )
 
         # After learning, should mostly select TLS_FINGERPRINT_ROTATION

@@ -20,10 +20,14 @@ class TestFingerprintGeneration:
             assert screen["height"] >= 720, "Screen height too small"
 
             # Color depth should be realistic
-            assert screen["colorDepth"] in [24, 30, 32], f"Invalid color depth: {screen['colorDepth']}"
+            assert screen["colorDepth"] in [24, 30, 32], (
+                f"Invalid color depth: {screen['colorDepth']}"
+            )
 
             # Pixel ratio should be realistic (1.0, 1.5, 2.0)
-            assert 1.0 <= screen["pixelRatio"] <= 2.0, f"Invalid pixel ratio: {screen['pixelRatio']}"
+            assert 1.0 <= screen["pixelRatio"] <= 2.0, (
+                f"Invalid pixel ratio: {screen['pixelRatio']}"
+            )
 
     def test_hardware_concurrency_realistic(self):
         """Test CPU core counts are realistic."""
@@ -33,8 +37,9 @@ class TestFingerprintGeneration:
             fp = engine.get_fingerprint()
 
             # Common core counts: 4, 8, 12, 16, 20, 24
-            assert fp["hardwareConcurrency"] in [4, 6, 8, 10, 12, 16, 20, 24], \
+            assert fp["hardwareConcurrency"] in [4, 6, 8, 10, 12, 16, 20, 24], (
                 f"Invalid core count: {fp['hardwareConcurrency']}"
+            )
 
     def test_device_memory_realistic(self):
         """Test device memory values are realistic."""
@@ -44,8 +49,9 @@ class TestFingerprintGeneration:
             fp = engine.get_fingerprint()
 
             # Common memory sizes: 4, 8, 16, 32, 64 GB
-            assert fp["deviceMemory"] in [4, 8, 16, 32, 64], \
+            assert fp["deviceMemory"] in [4, 8, 16, 32, 64], (
                 f"Invalid device memory: {fp['deviceMemory']}"
+            )
 
     def test_platform_valid(self):
         """Test platform strings are valid."""
@@ -55,8 +61,7 @@ class TestFingerprintGeneration:
 
         for _ in range(10):
             fp = engine.get_fingerprint()
-            assert fp["platform"] in valid_platforms, \
-                f"Invalid platform: {fp['platform']}"
+            assert fp["platform"] in valid_platforms, f"Invalid platform: {fp['platform']}"
 
     def test_webgl_vendor_renderer_present(self):
         """Test WebGL vendor and renderer are present."""
@@ -73,9 +78,10 @@ class TestFingerprintGeneration:
             vendor_lower = webgl["vendor"].lower()
             renderer_lower = webgl["renderer"].lower()
 
-            assert any(brand in vendor_lower or brand in renderer_lower
-                       for brand in ["nvidia", "amd", "intel", "apple", "google"]), \
-                f"Unrealistic GPU: {webgl['vendor']} / {webgl['renderer']}"
+            assert any(
+                brand in vendor_lower or brand in renderer_lower
+                for brand in ["nvidia", "amd", "intel", "apple", "google"]
+            ), f"Unrealistic GPU: {webgl['vendor']} / {webgl['renderer']}"
 
 
 class TestPlatformCorrelation:
@@ -93,13 +99,15 @@ class TestPlatformCorrelation:
                 renderer = fp["webgl"]["renderer"]
 
                 # MacBook should have Apple or Intel GPU
-                assert "Apple" in vendor or "Intel" in vendor or "AMD" in vendor, \
+                assert "Apple" in vendor or "Intel" in vendor or "AMD" in vendor, (
                     f"Mac has non-Mac GPU: {vendor}"
+                )
 
                 # MacBook with Retina display should have 2.0 pixel ratio
                 if "M1" in renderer or "M2" in renderer or "M3" in renderer:
-                    assert fp["screen"]["pixelRatio"] == 2.0, \
+                    assert fp["screen"]["pixelRatio"] == 2.0, (
                         "Apple Silicon Mac should have Retina display (2.0 ratio)"
+                    )
 
 
 class TestNoiseInjection:
@@ -136,8 +144,9 @@ class TestNoiseInjection:
 
         # All should be unique
         unique_noises = len(set(noises))
-        assert unique_noises == 5, \
+        assert unique_noises == 5, (
             f"Noise not varying between sessions (only {unique_noises}/5 unique)"
+        )
 
 
 class TestUserAgent:
@@ -151,12 +160,14 @@ class TestUserAgent:
             ua = engine.get_user_agent()
 
             # Should contain browser indicators
-            assert any(browser in ua for browser in ["Chrome", "Firefox", "Edge", "Safari"]), \
+            assert any(browser in ua for browser in ["Chrome", "Firefox", "Edge", "Safari"]), (
                 f"User agent doesn't contain browser: {ua}"
+            )
 
             # Should contain OS indicators
-            assert any(os in ua for os in ["Windows", "Macintosh", "X11", "Linux"]), \
+            assert any(os in ua for os in ["Windows", "Macintosh", "X11", "Linux"]), (
                 f"User agent doesn't contain OS: {ua}"
+            )
 
 
 class TestFingerprintDiversity:
@@ -169,17 +180,18 @@ class TestFingerprintDiversity:
         fingerprints = [engine.get_fingerprint() for _ in range(10)]
 
         # Extract key attributes
-        screen_resolutions = set((fp["screen"]["width"], fp["screen"]["height"]) for fp in fingerprints)
+        screen_resolutions = set(
+            (fp["screen"]["width"], fp["screen"]["height"]) for fp in fingerprints
+        )
         webgl_vendors = set(fp["webgl"]["vendor"] for fp in fingerprints)
         platforms = set(fp["platform"] for fp in fingerprints)
 
         # Should have diversity (at least 3 different values for each)
-        assert len(screen_resolutions) >= 3, \
+        assert len(screen_resolutions) >= 3, (
             f"Screen resolutions not diverse enough: {len(screen_resolutions)}/10"
-        assert len(webgl_vendors) >= 2, \
-            f"WebGL vendors not diverse enough: {len(webgl_vendors)}/10"
-        assert len(platforms) >= 2, \
-            f"Platforms not diverse enough: {len(platforms)}/10"
+        )
+        assert len(webgl_vendors) >= 2, f"WebGL vendors not diverse enough: {len(webgl_vendors)}/10"
+        assert len(platforms) >= 2, f"Platforms not diverse enough: {len(platforms)}/10"
 
 
 if __name__ == "__main__":

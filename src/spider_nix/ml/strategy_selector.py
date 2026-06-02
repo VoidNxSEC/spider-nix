@@ -24,38 +24,38 @@ from .models import Strategy, FailureClass
 class StrategySelector:
     """
     Epsilon-greedy multi-armed bandit for adaptive strategy selection.
-    
+
     Algorithm:
     - With probability ε (epsilon): EXPLORE - random strategy
     - With probability (1-ε): EXPLOIT - best known strategy
-    
+
     Learns from feedback.db which strategies succeed per domain.
     """
 
     def __init__(self, epsilon: float = 0.1, db_path: str = "feedback.db"):
         """
         Initialize strategy selector.
-        
+
         Args:
             epsilon: Exploration rate (0.1 = 10% exploration, 90% exploitation)
             db_path: Path to feedback.db for loading historical stats
         """
         self.epsilon = epsilon
         self.db_path = db_path
-        
+
         # Strategy statistics: {domain: {strategy: {"success": int, "failure": int}}}
         self.strategy_stats: Dict[str, Dict[Strategy, dict]] = {}
-        
+
         # Default strategy (used for new domains)
         self.default_strategy = Strategy.TLS_FINGERPRINT_ROTATION
 
     def select_strategy(self, domain: str) -> Strategy:
         """
         Select best strategy for domain using epsilon-greedy.
-        
+
         Args:
             domain: Target domain
-            
+
         Returns:
             Selected strategy
         """
@@ -95,7 +95,9 @@ class StrategySelector:
         current_avg = stats["avg_response_time"]
         stats["avg_response_time"] = (current_avg * (total - 1) + response_time_ms) / total
 
-    def record_attempt(self, domain: str, strategy: Strategy, failure_class: FailureClass, response_time_ms: float):
+    def record_attempt(
+        self, domain: str, strategy: Strategy, failure_class: FailureClass, response_time_ms: float
+    ):
         """
         Record crawl attempt outcome for ML feedback.
 
@@ -105,7 +107,7 @@ class StrategySelector:
             failure_class: Classification of the attempt result
             response_time_ms: Response time in milliseconds
         """
-        success = (failure_class == FailureClass.SUCCESS)
+        success = failure_class == FailureClass.SUCCESS
         self.update(domain, strategy, success, response_time_ms)
 
     def recommend_strategies(self, failure_class: FailureClass) -> list[Strategy]:
@@ -182,10 +184,7 @@ class StrategySelector:
         stats = self.strategy_stats[domain]
 
         # Calculate total attempts across all strategies
-        total_attempts = sum(
-            counts["success"] + counts["failure"]
-            for counts in stats.values()
-        )
+        total_attempts = sum(counts["success"] + counts["failure"] for counts in stats.values())
 
         best_strategies = []
         best_score = -1
@@ -238,7 +237,7 @@ class StrategySelector:
                     "success": counts["success"],
                     "failure": counts["failure"],
                     "total": total,
-                    "success_rate": rate
+                    "success_rate": rate,
                 }
 
             return stats_with_rates
@@ -264,7 +263,7 @@ class StrategySelector:
                         strategy = Strategy(strategy_name)
                         self.strategy_stats[domain][strategy] = {
                             "success": success,
-                            "failure": failure
+                            "failure": failure,
                         }
                     except ValueError:
                         # Unknown strategy in DB (skip)
@@ -279,7 +278,8 @@ class StrategySelector:
         async with aiosqlite.connect(self.db_path) as db:
             for domain, strategies in self.strategy_stats.items():
                 for strategy, counts in strategies.items():
-                    await db.execute("""
+                    await db.execute(
+                        """
                         INSERT INTO strategy_effectiveness
                         (domain, strategy, success_count, failure_count, last_updated)
                         VALUES (?, ?, ?, ?, datetime('now'))
@@ -287,14 +287,16 @@ class StrategySelector:
                             success_count = excluded.success_count,
                             failure_count = excluded.failure_count,
                             last_updated = datetime('now')
-                    """, (domain, strategy.value, counts["success"], counts["failure"]))
+                    """,
+                        (domain, strategy.value, counts["success"], counts["failure"]),
+                    )
 
             await db.commit()
 
     def get_domain_recommendation(self, domain: str) -> Dict[str, any]:
         """
         Get recommendation for domain.
-        
+
         Returns:
             Dict with best strategy, confidence, and advice
         """
@@ -304,7 +306,7 @@ class StrategySelector:
                 "status": "new",
                 "recommendation": self.default_strategy.value,
                 "confidence": 0.0,
-                "advice": "No data yet - using default strategy"
+                "advice": "No data yet - using default strategy",
             }
 
         best_strategy = self._best_strategy(domain)
@@ -322,7 +324,7 @@ class StrategySelector:
             "success_rate": best_stats["success_rate"],
             "attempts": best_stats["total"],
             "confidence": confidence,
-            "advice": self._generate_advice(best_stats)
+            "advice": self._generate_advice(best_stats),
         }
 
     def _generate_advice(self, stats: dict) -> str:

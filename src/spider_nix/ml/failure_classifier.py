@@ -31,6 +31,7 @@ class Evidence(dict[str, Any]):
 @dataclass
 class ClassificationResult:
     """Result of failure classification."""
+
     failure_class: FailureClass
     confidence: float  # 0.0-1.0
     evidence: Evidence
@@ -44,13 +45,13 @@ class ClassificationResult:
 class FailureClassifier:
     """
     Rule-based failure classification (MVP).
-    
+
     Uses heuristics to classify why requests fail:
     - Status code patterns
     - Response body keywords
     - Headers analysis
     - Exception types
-    
+
     Future: Replace with ML classifier trained on feedback.db
     """
 
@@ -58,26 +59,41 @@ class FailureClassifier:
         """Initialize classifier with detection patterns."""
         # CAPTCHA detection patterns
         self.captcha_indicators = [
-            "recaptcha", "g-recaptcha", "hcaptcha", "h-captcha",
-            "cloudflare challenge", "cf-challenge", "cf-chl-bypass",
-            "verify you are human", "captcha",
-            "bot detection", "security check"
+            "recaptcha",
+            "g-recaptcha",
+            "hcaptcha",
+            "h-captcha",
+            "cloudflare challenge",
+            "cf-challenge",
+            "cf-chl-bypass",
+            "verify you are human",
+            "captcha",
+            "bot detection",
+            "security check",
         ]
-        
+
         # Bot detection indicators
         self.bot_indicators = [
-            "access denied", "blocked", "automated",
-            "bot detected", "suspicious activity",
-            "datadome", "perimeterx", "_px", "imperva"
+            "access denied",
+            "blocked",
+            "automated",
+            "bot detected",
+            "suspicious activity",
+            "datadome",
+            "perimeterx",
+            "_px",
+            "imperva",
         ]
-        
+
         # Rate limit indicators
         self.rate_limit_indicators = [
-            "rate limit", "too many requests",
-            "quota exceeded", "throttled",
-            "retry after"
+            "rate limit",
+            "too many requests",
+            "quota exceeded",
+            "throttled",
+            "retry after",
         ]
-        
+
         # WAF headers
         self.waf_headers = {
             "cloudflare": ["cf-ray", "cf-cache-status"],
@@ -232,7 +248,9 @@ class FailureClassifier:
             reason="no_pattern_matched",
         )
 
-    def _result(self, failure_class: FailureClass, confidence: float, **evidence: Any) -> ClassificationResult:
+    def _result(
+        self, failure_class: FailureClass, confidence: float, **evidence: Any
+    ) -> ClassificationResult:
         return ClassificationResult(failure_class, confidence, Evidence(evidence))
 
     def should_retry(
@@ -287,9 +305,8 @@ class FailureClassifier:
         """Detect CAPTCHA challenges."""
         body_lower = body.lower()
         server = headers.get("server", headers.get("Server", "")).lower()
-        return (
-            any(indicator in body_lower for indicator in self.captcha_indicators)
-            or ("cloudflare" in server and "cf-challenge" in body_lower)
+        return any(indicator in body_lower for indicator in self.captcha_indicators) or (
+            "cloudflare" in server and "cf-challenge" in body_lower
         )
 
     def _detect_captcha_provider(self, body: str, headers: dict[str, str] | None = None) -> str:
@@ -310,7 +327,7 @@ class FailureClassifier:
     def _is_bot_challenge(self, body: str, headers: dict[str, str]) -> bool:
         """Detect bot challenges (Cloudflare, DataDome, PerimeterX)."""
         body_lower = body.lower()
-        
+
         # Cloudflare
         if headers.get("Server") == "cloudflare" and "cf_clearance" in body_lower:
             return True
@@ -336,8 +353,11 @@ class FailureClassifier:
         """
         body_lower = body.lower()
         soft_block_indicators = [
-            "access denied", "blocked", "forbidden",
-            "not authorized", "access restricted"
+            "access denied",
+            "blocked",
+            "forbidden",
+            "not authorized",
+            "access restricted",
         ]
 
         # Only treat as soft block if BOTH small AND has keywords
@@ -356,7 +376,7 @@ class FailureClassifier:
     def _detect_waf(self, headers: dict[str, str]) -> str | None:
         """Detect Web Application Firewall."""
         headers_lower = {k.lower(): v for k, v in headers.items()}
-        
+
         for waf, header_keys in self.waf_headers.items():
             if any(key in headers_lower for key in header_keys):
                 return str(waf)

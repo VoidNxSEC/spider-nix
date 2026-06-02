@@ -9,15 +9,26 @@ from fake_useragent import UserAgent
 # Expanded with MacBook, 4K, and ultrawide resolutions
 SCREEN_RESOLUTIONS = [
     # Common Windows
-    (1920, 1080), (1366, 768), (1536, 864), (1440, 900),
-    (1280, 720), (1600, 900), (1680, 1050), (1280, 1024),
+    (1920, 1080),
+    (1366, 768),
+    (1536, 864),
+    (1440, 900),
+    (1280, 720),
+    (1600, 900),
+    (1680, 1050),
+    (1280, 1024),
     # High-end Windows/Linux
-    (2560, 1440), (3840, 2160), (2560, 1080),  # Ultrawide
+    (2560, 1440),
+    (3840, 2160),
+    (2560, 1080),  # Ultrawide
     # MacBook Pro
-    (2560, 1600), (3024, 1964), (3456, 2234),  # M1/M2/M3 Pro
+    (2560, 1600),
+    (3024, 1964),
+    (3456, 2234),  # M1/M2/M3 Pro
     (3840, 2400),  # 16" M1 Max
     # MacBook Air
-    (2560, 1664), (2880, 1800),
+    (2560, 1664),
+    (2880, 1800),
 ]
 
 WEBGL_VENDORS = [
@@ -52,8 +63,12 @@ LANGUAGES = [
 ]
 
 TIMEZONES = [
-    "America/New_York", "America/Los_Angeles", "America/Chicago",
-    "America/Sao_Paulo", "Europe/London", "Europe/Berlin",
+    "America/New_York",
+    "America/Los_Angeles",
+    "America/Chicago",
+    "America/Sao_Paulo",
+    "Europe/London",
+    "Europe/Berlin",
 ]
 
 
@@ -67,15 +82,15 @@ class StealthEngine:
         # Per-session noise factors (not per-request)
         self._canvas_noise = self._rng.uniform(0.00001, 0.0001)
         self._audio_noise = self._rng.uniform(0.000001, 0.00002)
-    
+
     def get_user_agent(self) -> str:
         """Get random realistic user agent."""
         return str(self._ua.random)
-    
+
     def get_headers(self) -> dict[str, str]:
         """Generate realistic request headers."""
         ua = self.get_user_agent()
-        
+
         return {
             "User-Agent": ua,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -90,14 +105,21 @@ class StealthEngine:
             "Sec-Fetch-User": "?1",
             "Cache-Control": "max-age=0",
         }
-    
+
     def get_fingerprint(self) -> dict[str, Any]:
         """Generate randomized browser fingerprint."""
         resolution = self._rng.choice(SCREEN_RESOLUTIONS)
         webgl_vendor, webgl_renderer = self._rng.choice(WEBGL_VENDORS)
 
         # Correlate platform with screen resolution for realism
-        if resolution in [(2560, 1600), (3024, 1964), (3456, 2234), (3840, 2400), (2560, 1664), (2880, 1800)]:
+        if resolution in [
+            (2560, 1600),
+            (3024, 1964),
+            (3456, 2234),
+            (3840, 2400),
+            (2560, 1664),
+            (2880, 1800),
+        ]:
             platform = "MacIntel"
             # Ensure Apple GPU for MacBooks
             if not webgl_vendor.startswith("Apple"):
@@ -128,13 +150,13 @@ class StealthEngine:
             "hardwareConcurrency": self._rng.choice([4, 8, 12, 16, 20, 24]),  # Modern CPUs
             "deviceMemory": self._rng.choice([4, 8, 16, 32, 64]),  # 64GB for workstations
         }
-    
+
     def get_random_delay_ms(self, min_ms: int = 500, max_ms: int = 3000) -> int:
         """Get humanized random delay."""
         # Use log-normal distribution for more human-like delays
         mean = (min_ms + max_ms) / 2
         return int(self._rng.gauss(mean, (max_ms - min_ms) / 4))
-    
+
     def get_playwright_stealth_script(self) -> str:
         """JavaScript to inject for Playwright stealth (enterprise anti-detection)."""
         fingerprint = self.get_fingerprint()

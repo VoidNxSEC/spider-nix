@@ -38,10 +38,10 @@ class TestTechnologyDetector:
     def test_detect_wordpress(self):
         """Test WordPress detection."""
         detector = TechnologyDetector()
-        html = '''
+        html = """
         <link rel="stylesheet" href="/wp-content/themes/twentytwenty/style.css">
         <script src="/wp-includes/js/jquery/jquery.min.js"></script>
-        '''
+        """
 
         techs = detector.detect(html)
 
@@ -80,11 +80,11 @@ class TestTechnologyDetector:
     def test_detect_multiple_techs(self):
         """Test detection of multiple technologies."""
         detector = TechnologyDetector()
-        html = '''
+        html = """
         <script src="https://code.jquery.com/jquery.min.js"></script>
         <script src="https://www.google-analytics.com/analytics.js"></script>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css">
-        '''
+        """
 
         techs = detector.detect(html)
 
@@ -122,12 +122,12 @@ class TestContactHarvester:
     def test_extract_social_media(self):
         """Test social media profile extraction."""
         harvester = ContactHarvester()
-        html = '''
+        html = """
         Follow us:
         <a href="https://twitter.com/example">Twitter</a>
         <a href="https://github.com/testuser">GitHub</a>
         <a href="https://linkedin.com/in/johndoe">LinkedIn</a>
-        '''
+        """
 
         contacts = harvester.extract_social_media(html)
 
@@ -140,11 +140,11 @@ class TestContactHarvester:
     def test_harvest_all(self):
         """Test harvesting all contact types."""
         harvester = ContactHarvester()
-        html = '''
+        html = """
         Contact: admin@example.com
         Phone: +1-555-1234
         Twitter: https://twitter.com/company
-        '''
+        """
 
         contacts = harvester.harvest(html)
 
@@ -159,12 +159,12 @@ class TestAPIDiscovery:
     def test_discover_fetch_calls(self):
         """Test discovery from fetch() calls."""
         discovery = APIDiscovery()
-        html = '''
+        html = """
         <script>
         fetch('/api/v1/users')
         fetch('/api/v2/products')
         </script>
-        '''
+        """
 
         endpoints = discovery.discover(html, "https://example.com")
 
@@ -176,12 +176,12 @@ class TestAPIDiscovery:
     def test_discover_axios_calls(self):
         """Test discovery from axios calls."""
         discovery = APIDiscovery()
-        html = '''
+        html = """
         <script>
         axios.get('/api/data')
         axios.post('/api/submit')
         </script>
-        '''
+        """
 
         endpoints = discovery.discover(html, "https://example.com")
 
@@ -193,11 +193,11 @@ class TestAPIDiscovery:
     def test_discover_absolute_urls(self):
         """Test discovery of absolute URLs."""
         discovery = APIDiscovery()
-        html = '''
+        html = """
         <script>
         fetch('https://api.example.com/v1/users')
         </script>
-        '''
+        """
 
         endpoints = discovery.discover(html, "https://example.com")
 
@@ -221,7 +221,7 @@ class TestContentAnalyzer:
     def test_analyze_complete(self):
         """Test complete content analysis."""
         analyzer = ContentAnalyzer()
-        html = '''
+        html = """
         <html>
         <head><title>Test Page</title></head>
         <body>
@@ -231,7 +231,7 @@ class TestContentAnalyzer:
         Twitter: https://twitter.com/company
         </body>
         </html>
-        '''
+        """
 
         result = analyzer.analyze("https://example.com", html, {"server": "nginx"})
 

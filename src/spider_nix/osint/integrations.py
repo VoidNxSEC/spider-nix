@@ -248,7 +248,10 @@ class URLScanClient:
                 screenshot_url=data.get("task", {}).get("screenshotURL"),
                 verdict=verdict.get("overall", {}).get("verdict"),
                 malicious=verdict.get("overall", {}).get("malicious", False),
-                technologies=data.get("meta", {}).get("processors", {}).get("wappa", {}).get("data", []),
+                technologies=data.get("meta", {})
+                .get("processors", {})
+                .get("wappa", {})
+                .get("data", []),
                 ip=page.get("ip"),
                 data=data,
             )
