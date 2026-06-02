@@ -166,7 +166,6 @@ async def api_pipeline_stats():
     """Get pipeline statistics."""
     storage = _get_storage()
     try:
-        tracker = ApplicationTracker(storage)
         apps = await storage.get_applications(limit=200)
         stats = await storage.get_application_stats()
         return {"stats": stats, "applications": apps}
