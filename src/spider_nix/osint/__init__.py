@@ -14,40 +14,40 @@ This module provides active reconnaissance capabilities including:
 - Web intelligence (structured data, sitemaps, archives)
 """
 
-from .reconnaissance import DNSResolver, WHOISLookup, SubdomainEnumerator
 from .analyzer import (
-    ContentAnalyzer,
-    TechnologyDetector,
-    ContactHarvester,
     APIDiscovery,
+    ContactHarvester,
+    ContentAnalyzer,
     EnhancedTechStack,
+    TechnologyDetector,
 )
+from .correlator import CorrelationEngine, Entity, IntelligenceGraph, Relationship
+from .integrations import OSINTAggregator, ShodanClient, URLScanClient, VirusTotalClient
+from .reconnaissance import DNSResolver, SubdomainEnumerator, WHOISLookup
 from .scanner import PortScanner, ServiceDetector
-from .vulnerability import VulnerabilityScanner, SecurityHeadersChecker, CVEMatcher
-from .integrations import ShodanClient, URLScanClient, VirusTotalClient, OSINTAggregator
-from .correlator import CorrelationEngine, IntelligenceGraph, Entity, Relationship
+from .vulnerability import CVEMatcher, SecurityHeadersChecker, VulnerabilityScanner
 from .web_discovery import (
-    GraphQLEndpoint,
-    GraphQLDiscovery,
-    FormField,
+    DirectoryBruteforcer,
+    DirectoryEntry,
     FormAnalysis,
     FormAnalyzer,
-    DirectoryEntry,
-    DirectoryBruteforcer,
+    FormField,
+    GraphQLDiscovery,
+    GraphQLEndpoint,
     WellKnownResource,
     WellKnownScanner,
 )
 from .web_intelligence import (
-    StructuredData,
-    StructuredDataExtractor,
-    SitemapURL,
-    SitemapAnalysis,
-    SitemapParser,
-    RobotsRule,
-    RobotsAnalysis,
-    RobotsTxtAnalyzer,
     ArchiveSnapshot,
     ArchiveTimeline,
+    RobotsAnalysis,
+    RobotsRule,
+    RobotsTxtAnalyzer,
+    SitemapAnalysis,
+    SitemapParser,
+    SitemapURL,
+    StructuredData,
+    StructuredDataExtractor,
     WebArchiveClient,
 )
 

@@ -354,7 +354,7 @@ class TechnologyDetector:
         """Detect CDN URL for a specific technology."""
         tech_lower = tech_name.lower()
 
-        for cdn_name, pattern in self.CDN_PATTERNS.items():
+        for _, pattern in self.CDN_PATTERNS.items():
             matches = re.finditer(pattern, html, re.IGNORECASE)
             for match in matches:
                 matched_url = match.group(0)

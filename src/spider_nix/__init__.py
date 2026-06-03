@@ -12,33 +12,15 @@ from .config import (
     RESEARCH_CONFIG,
     STEALTH_CONFIG,
     CrawlerConfig,
+    MLConfig,
+    NetworkConfig,
     ProxyConfig,
     StealthConfig,
-    NetworkConfig,
     VisionConfig,
-    MLConfig,
     get_preset,
     list_presets,
 )
 from .crawler import SpiderNix, quick_crawl
-from .monitor import CrawlMonitor, CrawlStatistics
-from .prioritizer import (
-    BreadthFirstPrioritizer,
-    DepthFirstPrioritizer,
-    FocusedCrawlPrioritizer,
-    LinkPrioritizer,
-    PrioritizedLink,
-)
-from .rate_limiter import (
-    AdaptiveRateLimiter,
-    CircuitBreaker,
-    CircuitBreakerConfig,
-    CircuitBreakerError,
-    RequestDeduplicator,
-)
-from .report import HTMLReportGenerator, generate_report
-from .session import CaptchaDetector, Session, SessionManager
-from .wizard import ConfigurationWizard, run_wizard
 
 # Multimodal extraction (Phase 1)
 from .extraction import (
@@ -61,6 +43,24 @@ from .ml import (
     StrategyEffectiveness,
     StrategySelector,
 )
+from .monitor import CrawlMonitor, CrawlStatistics
+from .prioritizer import (
+    BreadthFirstPrioritizer,
+    DepthFirstPrioritizer,
+    FocusedCrawlPrioritizer,
+    LinkPrioritizer,
+    PrioritizedLink,
+)
+from .rate_limiter import (
+    AdaptiveRateLimiter,
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerError,
+    RequestDeduplicator,
+)
+from .report import HTMLReportGenerator, generate_report
+from .session import CaptchaDetector, Session, SessionManager
+from .wizard import ConfigurationWizard, run_wizard
 
 __all__ = [
     # Version

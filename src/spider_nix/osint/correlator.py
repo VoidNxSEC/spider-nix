@@ -106,9 +106,8 @@ class IntelligenceGraph:
         """
         results = []
         for rel in self.relationships:
-            if rel.source_id == entity_id or rel.target_id == entity_id:
-                if rel_type is None or rel.rel_type == rel_type:
-                    results.append(rel)
+            if (rel.source_id == entity_id or rel.target_id == entity_id) and (rel_type is None or rel.rel_type == rel_type):
+                results.append(rel)
         return results
 
     def get_connected_entities(self, entity_id: str) -> list[Entity]:

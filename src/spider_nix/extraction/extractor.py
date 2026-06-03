@@ -12,7 +12,6 @@ import asyncio
 import tempfile
 import time
 from pathlib import Path
-from typing import Optional
 
 from ..ml.vision_client import VisionClient
 from .dom_analyzer import DOMAnalyzer
@@ -34,7 +33,7 @@ class MultimodalExtractor:
 
     def __init__(
         self,
-        vision_client: Optional[VisionClient] = None,
+        vision_client: VisionClient | None = None,
         iou_threshold: float = 0.5,
         vision_api_url: str = "http://localhost:9000",
         vision_model: str = "llava-v1.5-7b-q4",
@@ -57,7 +56,7 @@ class MultimodalExtractor:
         self,
         url: str,
         page,  # Playwright page handle
-        screenshot_path: Optional[Path] = None,
+        screenshot_path: Path | None = None,
         viewport_width: int = 1920,
         viewport_height: int = 1080,
     ) -> ExtractionResult:
@@ -84,13 +83,12 @@ class MultimodalExtractor:
 
         # Step 1: Capture screenshot
         if screenshot_path is None:
-            screenshot_file = tempfile.NamedTemporaryFile(
+            with tempfile.NamedTemporaryFile(
                 prefix="spider-nix-screenshot-",
                 suffix=".png",
                 delete=False,
-            )
-            screenshot_file.close()
-            screenshot_path = Path(screenshot_file.name)
+            ) as screenshot_file:
+                screenshot_path = Path(screenshot_file.name)
 
         await page.screenshot(path=str(screenshot_path))
         html_content = await page.content()
@@ -158,8 +156,9 @@ class MultimodalExtractor:
             ExtractionResult
         """
         from playwright.async_api import async_playwright
-        from ..config import CrawlerConfig
+
         from ..browser import BrowserCrawler
+        from ..config import CrawlerConfig
 
         # Create browser crawler for page rendering
         config = CrawlerConfig(use_browser=True, headless=headless)

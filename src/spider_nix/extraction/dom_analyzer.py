@@ -5,11 +5,10 @@ Extracts all interactive elements from HTML with their bounding boxes,
 generating XPath and CSS selectors for reliable element targeting.
 """
 
-from typing import List, Optional
 
 from lxml import html
 
-from .models import DOMElement, BoundingBox
+from .models import BoundingBox, DOMElement
 
 
 class DOMAnalyzer:
@@ -29,7 +28,7 @@ class DOMAnalyzer:
         page_handle=None,  # Playwright page for getBoundingClientRect
         viewport_width: int = 1920,
         viewport_height: int = 1080,
-    ) -> List[DOMElement]:
+    ) -> list[DOMElement]:
         """
         Extract all interactive elements from DOM with positions.
 
@@ -90,8 +89,7 @@ class DOMAnalyzer:
                     )
                     elements.append(element)
 
-                except Exception:
-                    # Skip problematic elements
+                except Exception:  # nosec B112
                     continue
 
         return elements
@@ -151,7 +149,7 @@ class DOMAnalyzer:
 
     async def _get_element_position(
         self, page, css_selector: str, viewport_width: int, viewport_height: int
-    ) -> Optional[BoundingBox]:
+    ) -> BoundingBox | None:
         """
         Get element position using Playwright's getBoundingClientRect().
 
@@ -182,7 +180,7 @@ class DOMAnalyzer:
 
     async def get_all_clickable_elements(
         self, page, viewport_width: int = 1920, viewport_height: int = 1080
-    ) -> List[DOMElement]:
+    ) -> list[DOMElement]:
         """
         Alternative: Get all clickable elements via JS query.
 

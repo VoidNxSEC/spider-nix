@@ -4,16 +4,16 @@ Multimodal extraction module for spider-nix.
 Vision-DOM fusion pipeline for CSS-independent element extraction.
 """
 
+from .dom_analyzer import DOMAnalyzer
+from .extractor import MultimodalExtractor
+from .fusion_engine import FusionEngine
 from .models import (
     BoundingBox,
-    VisionDetection,
     DOMElement,
-    FusedElement,
     ExtractionResult,
+    FusedElement,
+    VisionDetection,
 )
-from .dom_analyzer import DOMAnalyzer
-from .fusion_engine import FusionEngine
-from .extractor import MultimodalExtractor
 from .vision_extractor import VisionExtractor
 
 __all__ = [

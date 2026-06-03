@@ -251,10 +251,7 @@ class WHOISLookup:
             result = await asyncio.get_event_loop().run_in_executor(None, whois.whois, domain)
 
             # Handle both dict and Domain object responses
-            if isinstance(result, dict):
-                data = result
-            else:
-                data = result.__dict__
+            data = result if isinstance(result, dict) else result.__dict__
 
             return WHOISInfo(
                 domain=domain,

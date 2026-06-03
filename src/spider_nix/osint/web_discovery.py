@@ -6,6 +6,7 @@ and well-known resource scanning for comprehensive web intelligence.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -752,10 +753,8 @@ class WellKnownScanner:
                         if resource.endswith(".json") or "json" in response.headers.get(
                             "Content-Type", ""
                         ):
-                            try:
+                            with contextlib.suppress(json.JSONDecodeError):
                                 parsed_data = response.json()
-                            except json.JSONDecodeError:
-                                pass
 
                         found_resources.append(
                             WellKnownResource(

@@ -8,7 +8,7 @@ to CSS class changes.
 This is the key innovation that enables CSS-independent web scraping.
 """
 
-from .models import VisionDetection, DOMElement, FusedElement, BoundingBox
+from .models import BoundingBox, DOMElement, FusedElement, VisionDetection
 
 
 class FusionEngine:

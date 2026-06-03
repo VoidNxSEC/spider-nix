@@ -5,6 +5,7 @@ Provides structured data extraction, sitemap parsing, robots.txt analysis,
 and web archive integration for comprehensive competitive intelligence.
 """
 
+import contextlib
 import json
 import logging
 import re
@@ -399,20 +400,16 @@ class SitemapParser:
                     # Parse lastmod
                     lastmod = None
                     if lastmod_elem is not None and lastmod_elem.text:
-                        try:
+                        with contextlib.suppress(ValueError):
                             lastmod = datetime.fromisoformat(
                                 lastmod_elem.text.replace("Z", "+00:00")
                             )
-                        except ValueError:
-                            pass
 
                     # Parse priority
                     priority = None
                     if priority_elem is not None and priority_elem.text:
-                        try:
+                        with contextlib.suppress(ValueError):
                             priority = float(priority_elem.text)
-                        except ValueError:
-                            pass
 
                     urls.append(
                         SitemapURL(
@@ -557,10 +554,8 @@ class RobotsTxtAnalyzer:
                     sitemaps.append(value)
 
                 elif directive == "crawl-delay":
-                    try:
+                    with contextlib.suppress(ValueError):
                         crawl_delay = int(value)
-                    except ValueError:
-                        pass
 
         # Save last agent's rules
         if current_agent:

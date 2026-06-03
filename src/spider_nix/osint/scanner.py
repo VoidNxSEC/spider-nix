@@ -147,7 +147,7 @@ class PortScanner:
                     version=version,
                 )
 
-            except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
+            except (TimeoutError, ConnectionRefusedError, OSError):
                 # Port closed or filtered
                 return PortResult(
                     host=host,
@@ -196,7 +196,7 @@ class PortScanner:
                         banner=data.decode("utf-8", errors="ignore")[:100] if data else None,
                     )
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # No response - could be open or filtered
                     return PortResult(
                         host=host,
@@ -259,7 +259,7 @@ class PortScanner:
                 if response:
                     return response.decode("utf-8", errors="ignore").strip()[:200]
 
-        except (asyncio.TimeoutError, UnicodeDecodeError):
+        except (TimeoutError, UnicodeDecodeError):
             pass
 
         return None
@@ -476,7 +476,7 @@ class ServiceDetector:
                             service_info["banner"] = response.decode("utf-8", errors="ignore")
                             service_info["service"] = "http"
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             finally:
                 writer.close()
