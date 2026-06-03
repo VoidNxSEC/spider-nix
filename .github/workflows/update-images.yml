@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: "0 5 * * 1" # runs weekly every Monday at 05:00 UTC
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   bump-images:
     runs-on: "ubuntu-latest"

@@ -10,6 +10,10 @@ on:
     # Portfolio Value: Demonstrates proactive security monitoring
     - cron: '0 0 * * 1'
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   # Job 1: SAST with Bandit
   # Portfolio Value: Static Application Security Testing shows security awareness

@@ -12,10 +12,6 @@ on:
 jobs:
     deploy:
         runs-on: ubuntu-latest
-        permissions:
-            contents: write
-        concurrency:
-            group: ${{ github.workflow }}
         steps:
             - uses: actions/checkout@v6
               with:
@@ -23,19 +19,38 @@ jobs:
 
             - uses: cachix/install-nix-action@v31
 
-            - name: Configure Git user
+            - name: Decrypt Cloudflare secrets
               run: |
-                  git config --local user.email "github-actions[bot]@users.noreply.github.com"
-                  git config --local user.name "github-actions[bot]"
+                  printf '%s' "$SOPS_AGE_KEY" > /tmp/age-key.txt
+                  SOPS_AGE_KEY_FILE=/tmp/age-key.txt \
+                      nix develop --command sops --decrypt secrets/cloudflare.enc.env \
+                      > /tmp/cf.env
+                  grep -E '^[A-Z_]+=.' /tmp/cf.env >> "$GITHUB_ENV"
+                  rm -f /tmp/cf.env /tmp/age-key.txt
+              env:
+                  SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+
+            - name: Build docs
+              run: nix develop --command bash -c "cd docs && mkdocs build"
 
             - name: Deploy main
               if: github.ref_name == 'main'
               run: |
-                  nix develop ./docs --command bash -c "cd docs && mike deploy -p main"
+                  nix develop --command wrangler pages deploy docs/site \
+                      --project-name=spider-nix-docs \
+                      --branch=main
+              env:
+                  CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+                  CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
 
             - name: Deploy version
               if: startsWith(github.ref, 'refs/tags/v')
               run: |
                   REF_NAME=${{ github.ref_name }}
                   MAJOR_MINOR=${REF_NAME%.*}
-                  nix develop ./docs --command bash -c "cd docs && mike deploy -p -u ${MAJOR_MINOR} latest"
+                  nix develop --command wrangler pages deploy docs/site \
+                      --project-name=spider-nix-docs \
+                      --branch="${MAJOR_MINOR}"
+              env:
+                  CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+                  CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}

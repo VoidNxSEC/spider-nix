@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: "45 3 * * 1" # runs weekly every Monday at 03:45 UTC
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   lockfile:
     runs-on: "ubuntu-latest"

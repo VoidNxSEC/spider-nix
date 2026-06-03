@@ -22,6 +22,8 @@ class BrowserCrawler:
         proxy_rotator: ProxyRotator | None = None,
         use_network_proxy: bool | None = None,
         network_proxy_url: str = "http://127.0.0.1:8080",
+        use_system_chrome: bool = False,
+        chrome_user_data_dir: str | None = None,
     ):
         self.config = config or CrawlerConfig(use_browser=True)
         self.proxy = proxy_rotator or ProxyRotator(
@@ -35,6 +37,8 @@ class BrowserCrawler:
             else use_network_proxy
         )
         self.network_proxy_url = network_proxy_url
+        self.use_system_chrome = use_system_chrome
+        self.chrome_user_data_dir = chrome_user_data_dir
         self._results: list[CrawlResult] = []
 
     async def _create_page(self):
