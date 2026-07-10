@@ -1,128 +1,357 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "base.html" %} {% block title %}Pipeline{% endblock %} {% block
+content %}
 <div x-data="pipelineApp()" x-init="load()">
-    <h1 class="text-2xl font-bold mb-6">📊 Application Pipeline</h1>
+    <div class="page-header">
+        <h1>Pipeline</h1>
+        <p>Track every application through your hiring funnel.</p>
+    </div>
 
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+    <!-- Stat Cards -->
+    <div class="stat-grid">
         <template x-for="s in stages" :key="s.key">
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 text-center">
-                <div class="text-2xl font-bold" :class="s.color" x-text="s.count"></div>
-                <div class="text-xs text-gray-400 mt-1" x-text="s.label"></div>
+            <div
+                class="stat-card"
+                @click="filter = (filter === s.key ? 'all' : s.key)"
+                style="cursor: pointer"
+            >
+                <div class="stat-icon" x-text="s.icon"></div>
+                <div
+                    class="stat-value"
+                    :style="'color:' + s.color"
+                    x-text="s.count"
+                ></div>
+                <div class="stat-label" x-text="s.label"></div>
             </div>
         </template>
     </div>
 
-    <!-- Filters -->
-    <div class="flex gap-2 mb-4">
-        <button @click="filter = 'all'" :class="filter === 'all' ? 'bg-gray-600' : 'bg-gray-800'"
-                class="px-3 py-1 rounded text-sm border border-gray-700">All</button>
-        <button @click="filter = 'saved'" :class="filter === 'saved' ? 'bg-gray-600' : 'bg-gray-800'"
-                class="px-3 py-1 rounded text-sm border border-gray-700">💾 Saved</button>
-        <button @click="filter = 'applied'" :class="filter === 'applied' ? 'bg-gray-600' : 'bg-gray-800'"
-                class="px-3 py-1 rounded text-sm border border-gray-700">📤 Applied</button>
-        <button @click="filter = 'phone_screen'" :class="filter === 'phone_screen' ? 'bg-gray-600' : 'bg-gray-800'"
-                class="px-3 py-1 rounded text-sm border border-gray-700">📞 Phone</button>
-        <button @click="filter = 'technical'" :class="filter === 'technical' ? 'bg-gray-600' : 'bg-gray-800'"
-                class="px-3 py-1 rounded text-sm border border-gray-700">💻 Technical</button>
-        <button @click="filter = 'offer'" :class="filter === 'offer' ? 'bg-gray-600' : 'bg-gray-800'"
-                class="px-3 py-1 rounded text-sm border border-gray-700">🎉 Offer</button>
+    <!-- Filters & Actions -->
+    <div
+        style="
+            display: flex;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+            flex-wrap: wrap;
+            align-items: center;
+        "
+    >
+        <button
+            @click="filter = 'all'"
+            :class="filter === 'all' ? 'btn-primary' : 'btn-secondary'"
+            class="btn btn-sm"
+        >
+            All
+        </button>
+        <template x-for="s in stages" :key="s.key">
+            <button
+                @click="filter = s.key"
+                :class="filter === s.key ? 'btn-primary' : 'btn-secondary'"
+                class="btn btn-sm"
+            >
+                <span x-text="s.icon"></span> <span x-text="s.label"></span>
+            </button>
+        </template>
+        <span style="flex: 1"></span>
+        <button @click="load()" class="btn btn-ghost btn-sm">↻ Refresh</button>
     </div>
 
-    <!-- Applications Table -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-gray-400 border-b border-gray-700">
-                    <th class="px-3 py-2">Status</th>
-                    <th class="px-3 py-2">Title</th>
-                    <th class="px-3 py-2">Company</th>
-                    <th class="px-3 py-2">Score</th>
-                    <th class="px-3 py-2">Updated</th>
-                    <th class="px-3 py-2">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <template x-for="app in filteredApps()" :key="app.job_id || app.id">
-                    <tr class="border-b border-gray-700 hover:bg-gray-750">
-                        <td class="px-3 py-2">
-                            <span class="text-xs px-2 py-0.5 rounded"
-                                  :class="statusClass(app.status)" x-text="app.status"></span>
-                        </td>
-                        <td class="px-3 py-2 max-w-xs truncate" x-text="app.title || '-'"></td>
-                        <td class="px-3 py-2" x-text="app.company || '-'"></td>
-                        <td class="px-3 py-2" x-text="app.score ? app.score.toFixed(0) : '-'"></td>
-                        <td class="px-3 py-2 text-gray-500 text-xs" x-text="(app.updated_at || '').slice(0,10)"></td>
-                        <td class="px-3 py-2">
-                            <select @change="updateStatus(app.job_id || app.id, $event.target.value)"
-                                    class="bg-gray-700 text-xs rounded px-1 py-0.5 border border-gray-600">
-                                <option value="">Move to...</option>
-                                <option value="applied">📤 Applied</option>
-                                <option value="phone_screen">📞 Phone</option>
-                                <option value="technical">💻 Technical</option>
-                                <option value="onsite">🏢 Onsite</option>
-                                <option value="offer">🎉 Offer</option>
-                                <option value="rejected">❌ Rejected</option>
-                            </select>
-                        </td>
+    <!-- Kanban View -->
+    <div class="kanban-grid" x-show="filter === 'all'">
+        <template x-for="s in stages" :key="s.key">
+            <div class="kanban-col">
+                <div class="kanban-col-header">
+                    <span
+                        ><span x-text="s.icon"></span>
+                        <span x-text="s.label"></span
+                    ></span>
+                    <span
+                        class="badge badge-default"
+                        x-text="appsByStage(s.key).length"
+                    ></span>
+                </div>
+                <div class="kanban-col-body">
+                    <template
+                        x-for="app in appsByStage(s.key).slice(0, 10)"
+                        :key="app.job_id || app.id"
+                    >
+                        <div class="kanban-card">
+                            <div
+                                class="kc-title"
+                                x-text="app.title || 'Untitled'"
+                            ></div>
+                            <div
+                                class="kc-company"
+                                x-text="app.company || '—'"
+                            ></div>
+                            <div class="kc-meta">
+                                <span
+                                    x-show="app.score"
+                                    :class="app.score >= 70 ? 'text-accent' : 'text-secondary'"
+                                    x-text="'⭐ ' + Math.round(app.score)"
+                                ></span>
+                                <span
+                                    x-text="(app.updated_at || '').slice(0,10)"
+                                ></span>
+                                <select
+                                    @click.stop
+                                    @change="updateStatus(app.job_id || app.id, $event.target.value)"
+                                    class="select"
+                                    style="
+                                        font-size: 0.65rem;
+                                        padding: 1px 6px;
+                                        margin-left: auto;
+                                    "
+                                >
+                                    <option value="">Move</option>
+                                    <option value="applied">📤 Applied</option>
+                                    <option value="phone_screen">
+                                        📞 Phone
+                                    </option>
+                                    <option value="technical">💻 Tech</option>
+                                    <option value="onsite">🏢 Onsite</option>
+                                    <option value="offer">🎉 Offer</option>
+                                    <option value="accepted">✅ Accept</option>
+                                    <option value="rejected">❌ Reject</option>
+                                </select>
+                            </div>
+                        </div>
+                    </template>
+                    <div
+                        x-show="appsByStage(s.key).length === 0"
+                        style="
+                            padding: var(--space-4);
+                            text-align: center;
+                            color: var(--text-tertiary);
+                            font-size: var(--font-size-sm);
+                        "
+                    >
+                        No applications
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Table View (filtered) -->
+    <div x-show="filter !== 'all'" class="card">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Title</th>
+                        <th>Company</th>
+                        <th>Score</th>
+                        <th>Notes</th>
+                        <th>Updated</th>
+                        <th></th>
                     </tr>
-                </template>
-            </tbody>
-        </table>
-        <div x-show="filteredApps().length === 0" class="text-center py-12 text-gray-500">
-            <div class="text-3xl mb-2">📋</div>
-            <p>No applications in this stage yet.</p>
-            <p class="text-sm">Run a job hunt and save results to start tracking.</p>
+                </thead>
+                <tbody>
+                    <template
+                        x-for="app in filteredApps()"
+                        :key="app.job_id || app.id"
+                    >
+                        <tr>
+                            <td>
+                                <span
+                                    :class="'badge ' + statusBadgeClass(app.status)"
+                                    x-text="app.status"
+                                ></span>
+                            </td>
+                            <td
+                                style="font-weight: 600"
+                                x-text="app.title || '—'"
+                            ></td>
+                            <td x-text="app.company || '—'"></td>
+                            <td>
+                                <span
+                                    x-show="app.score"
+                                    :class="app.score >= 70 ? 'text-accent' : app.score >= 40 ? 'text-secondary' : 'text-tertiary'"
+                                    x-text="Math.round(app.score)"
+                                    style="font-weight: 700"
+                                ></span>
+                                <span x-show="!app.score" class="text-tertiary"
+                                    >—</span
+                                >
+                            </td>
+                            <td
+                                class="text-secondary"
+                                style="
+                                    max-width: 200px;
+                                    overflow: hidden;
+                                    text-overflow: ellipsis;
+                                    white-space: nowrap;
+                                "
+                                x-text="app.notes || '—'"
+                            ></td>
+                            <td
+                                class="text-xs text-tertiary"
+                                x-text="(app.updated_at || '').slice(0,10)"
+                            ></td>
+                            <td>
+                                <select
+                                    @change="updateStatus(app.job_id || app.id, $event.target.value)"
+                                    class="select"
+                                    style="font-size: 0.7rem; padding: 2px 6px"
+                                >
+                                    <option value="">Move to...</option>
+                                    <option value="saved">💾 Saved</option>
+                                    <option value="applied">📤 Applied</option>
+                                    <option value="phone_screen">
+                                        📞 Phone
+                                    </option>
+                                    <option value="technical">💻 Tech</option>
+                                    <option value="onsite">🏢 Onsite</option>
+                                    <option value="offer">🎉 Offer</option>
+                                    <option value="accepted">
+                                        ✅ Accepted
+                                    </option>
+                                    <option value="rejected">
+                                        ❌ Rejected
+                                    </option>
+                                </select>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <div
+            x-show="filteredApps().length === 0"
+            class="empty-state"
+            style="padding: var(--space-10)"
+        >
+            <div class="empty-icon">📋</div>
+            <h3>No applications here yet</h3>
+            <p>
+                Run a job hunt and save results, or move applications to this
+                stage.
+            </p>
         </div>
     </div>
 </div>
 
 <script>
-function pipelineApp() {
-    return {
-        apps: [],
-        stats: {},
-        filter: 'all',
-        stages: [
-            {key:'saved', label:'Saved', color:'text-gray-400', count:0},
-            {key:'applied', label:'Applied', color:'text-blue-400', count:0},
-            {key:'phone_screen', label:'Phone', color:'text-yellow-400', count:0},
-            {key:'technical', label:'Tech', color:'text-purple-400', count:0},
-            {key:'offer', label:'Offer', color:'text-green-400', count:0},
-        ],
+    function pipelineApp() {
+        return {
+            apps: [],
+            stats: {},
+            filter: "all",
+            stages: [
+                {
+                    key: "saved",
+                    label: "Saved",
+                    icon: "💾",
+                    color: "var(--text-secondary)",
+                    count: 0,
+                },
+                {
+                    key: "applied",
+                    label: "Applied",
+                    icon: "📤",
+                    color: "var(--blue)",
+                    count: 0,
+                },
+                {
+                    key: "phone_screen",
+                    label: "Phone",
+                    icon: "📞",
+                    color: "var(--amber)",
+                    count: 0,
+                },
+                {
+                    key: "technical",
+                    label: "Technical",
+                    icon: "💻",
+                    color: "var(--purple)",
+                    count: 0,
+                },
+                {
+                    key: "onsite",
+                    label: "Onsite",
+                    icon: "🏢",
+                    color: "var(--orange)",
+                    count: 0,
+                },
+                {
+                    key: "offer",
+                    label: "Offer",
+                    icon: "🎉",
+                    color: "var(--accent)",
+                    count: 0,
+                },
+                {
+                    key: "accepted",
+                    label: "Accepted",
+                    icon: "✅",
+                    color: "var(--accent)",
+                    count: 0,
+                },
+                {
+                    key: "rejected",
+                    label: "Rejected",
+                    icon: "❌",
+                    color: "var(--red)",
+                    count: 0,
+                },
+            ],
 
-        async load() {
-            try {
-                const r = await fetch('/api/pipeline/stats');
-                const data = await r.json();
-                this.apps = data.applications || [];
-                this.stats = data.stats || {};
-                this.stages.forEach(s => { s.count = this.stats[s.key] || 0; });
-            } catch(e) { console.error(e); }
-        },
+            async load() {
+                try {
+                    const r = await fetch("/api/pipeline/stats");
+                    const data = await r.json();
+                    this.apps = data.applications || [];
+                    this.stats = data.stats || {};
+                    this.stages.forEach((s) => {
+                        s.count = this.stats[s.key] || 0;
+                    });
+                } catch (e) {
+                    showToast("Failed to load pipeline data", "error");
+                }
+            },
 
-        filteredApps() {
-            if (this.filter === 'all') return this.apps;
-            return this.apps.filter(a => a.status === this.filter);
-        },
+            appsByStage(key) {
+                return this.apps.filter((a) => a.status === key);
+            },
 
-        statusClass(status) {
-            const m = { saved:'bg-gray-600', applied:'bg-blue-600', phone_screen:'bg-yellow-600',
-                       technical:'bg-purple-600', onsite:'bg-orange-600', offer:'bg-green-600',
-                       accepted:'bg-green-700', rejected:'bg-red-600' };
-            return m[status] || 'bg-gray-600';
-        },
+            filteredApps() {
+                if (this.filter === "all") return this.apps;
+                return this.appsByStage(this.filter);
+            },
 
-        async updateStatus(jobId, newStatus) {
-            if (!newStatus) return;
-            await fetch(`/api/jobs/${jobId}/status`, {
-                method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({status: newStatus})
-            });
-            this.load();
-        }
+            statusBadgeClass(status) {
+                const m = {
+                    saved: "badge-default",
+                    applied: "badge-info",
+                    phone_screen: "badge-warning",
+                    technical: "badge-purple",
+                    onsite: "badge-warning",
+                    offer: "badge-success",
+                    accepted: "badge-success",
+                    rejected: "badge-danger",
+                    archived: "badge-default",
+                };
+                return m[status] || "badge-default";
+            },
+
+            async updateStatus(jobId, newStatus) {
+                if (!jobId || !newStatus) return;
+                try {
+                    await fetch(`/api/jobs/${jobId}/status`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ status: newStatus }),
+                    });
+                    showToast(`Status updated to ${newStatus}`, "success");
+                    if (newStatus === "accepted" || newStatus === "offer")
+                        celebrate();
+                    this.load();
+                } catch (e) {
+                    showToast("Failed to update status", "error");
+                }
+            },
+        };
     }
-}
 </script>
 {% endblock %}

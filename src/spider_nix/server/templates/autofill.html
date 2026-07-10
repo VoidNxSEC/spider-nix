@@ -1,100 +1,319 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "base.html" %} {% block title %}Auto-Fill{% endblock %} {% block
+content %}
 <div x-data="autofillApp()">
-    <h1 class="text-2xl font-bold mb-6">🤖 Auto-Fill</h1>
-
-    <div class="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
-        <div class="flex gap-3">
-            <input x-model="url" placeholder="Paste job application URL here..."
-                   class="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
-            <button @click="analyze()" :disabled="loading"
-                    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-6 py-2 rounded text-sm font-bold">
-                🔍 Analyze Form
-            </button>
-        </div>
+    <div class="page-header">
+        <h1>Auto-Fill</h1>
+        <p>
+            Analyze application forms and auto-fill with your profile data.
+            Confidence-scored, review-first.
+        </p>
     </div>
 
-    <!-- Loading -->
-    <div x-show="loading" class="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
-        <div class="flex items-center gap-3">
-            <div class="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-            <span>Analyzing form fields...</span>
-        </div>
-    </div>
-
-    <!-- Results -->
-    <template x-for="(form, fi) in forms" :key="fi">
-        <div class="bg-gray-800 rounded-lg border border-gray-700 mb-4 overflow-hidden">
-            <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-                <div>
-                    <span class="font-bold" x-text="'Form ' + (fi+1) + ': ' + (form.form_purpose || 'unknown')"></span>
-                    <span class="text-xs text-gray-400 ml-2" x-text="'[' + (form.platform || 'generic') + ']'"></span>
-                </div>
-                <div class="flex gap-2 text-xs">
-                    <span class="text-green-400" x-text="'🟢 ' + (form.confidence_summary?.high || 0) + ' high'"></span>
-                    <span class="text-yellow-400" x-text="'🟡 ' + (form.confidence_summary?.medium || 0) + ' med'"></span>
-                    <span class="text-red-400" x-text="'🔴 ' + (form.confidence_summary?.low || 0) + ' low'"></span>
-                </div>
+    <!-- URL Input -->
+    <div class="card" style="margin-bottom: var(--space-6)">
+        <div class="card-body">
+            <div class="input-group">
+                <input
+                    x-model="url"
+                    placeholder="Paste job application URL: https://jobs.lever.co/company/position"
+                    class="input"
+                    @keydown.enter="analyze()"
+                />
+                <button
+                    @click="analyze()"
+                    :disabled="analyzing"
+                    class="btn btn-primary btn-lg"
+                >
+                    <span x-show="!analyzing">🔍 Analyze Form</span>
+                    <span x-show="analyzing">Analyzing...</span>
+                </button>
             </div>
-            <div class="p-4">
-                <template x-for="field in form.fill_results || []" :key="field.field_name">
-                    <div class="flex items-center gap-3 py-2 border-b border-gray-700 last:border-0"
-                         :class="field.confidence >= 0.8 ? 'conf-high pl-2' : field.confidence >= 0.5 ? 'conf-medium pl-2' : field.confidence >= 0.3 ? 'conf-low pl-2' : ''">
-                        <span class="text-xs w-16 text-gray-500" x-text="field.field_type"></span>
-                        <div class="flex-1">
-                            <div class="text-sm" x-text="field.field_name"></div>
-                            <div class="text-xs text-gray-500" x-text="field.field_label || ''"></div>
+        </div>
+    </div>
+
+    <!-- Analysis Result -->
+    <div x-show="forms.length > 0" x-transition>
+        <template x-for="(form, fi) in forms" :key="fi">
+            <div class="card" style="margin-bottom: var(--space-6)">
+                <div class="card-header">
+                    <h2>
+                        <span
+                            x-text="form.platform || 'Application Form'"
+                        ></span>
+                        <span
+                            x-show="form.total_fields"
+                            class="text-secondary"
+                            style="font-weight: 400"
+                        >
+                            · <span x-text="form.total_fields"></span> fields
+                        </span>
+                    </h2>
+                    <div style="display: flex; gap: var(--space-2)">
+                        <button
+                            @click="liveFill()"
+                            class="btn btn-primary btn-sm"
+                        >
+                            ▶ Live Fill
+                        </button>
+                        <button
+                            @click="copyScript()"
+                            class="btn btn-secondary btn-sm"
+                        >
+                            📋 Copy Script
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" style="padding: 0">
+                    <!-- Summary Stats -->
+                    <div
+                        style="
+                            display: flex;
+                            gap: var(--space-6);
+                            padding: var(--space-4) var(--space-6);
+                            border-bottom: 1px solid var(--border-default);
+                        "
+                    >
+                        <div style="text-align: center">
+                            <div
+                                style="
+                                    font-size: var(--font-size-xl);
+                                    font-weight: 800;
+                                    color: var(--accent);
+                                "
+                                x-text="form.high_confidence || 0"
+                            ></div>
+                            <div class="text-xs text-tertiary">
+                                🟢 High (>80%)
+                            </div>
                         </div>
-                        <div class="flex-1">
-                            <span :class="field.value ? 'text-green-400' : 'text-gray-600'"
-                                  x-text="field.value ? field.value.slice(0,40) : '(empty)'"></span>
+                        <div style="text-align: center">
+                            <div
+                                style="
+                                    font-size: var(--font-size-xl);
+                                    font-weight: 800;
+                                    color: var(--amber);
+                                "
+                                x-text="form.medium_confidence || 0"
+                            ></div>
+                            <div class="text-xs text-tertiary">
+                                🟡 Medium (50-80%)
+                            </div>
                         </div>
-                        <div class="text-xs w-20 text-right">
-                            <span :class="field.confidence >= 0.8 ? 'text-green-400' : field.confidence >= 0.5 ? 'text-yellow-400' : 'text-red-400'"
-                                  x-text="(field.confidence * 100).toFixed(0) + '%'"></span>
-                            <span class="text-gray-600 ml-1" x-text="field.matched_by"></span>
+                        <div style="text-align: center">
+                            <div
+                                style="
+                                    font-size: var(--font-size-xl);
+                                    font-weight: 800;
+                                    color: var(--red);
+                                "
+                                x-text="form.low_confidence || 0"
+                            ></div>
+                            <div class="text-xs text-tertiary">
+                                🔴 Low (<50%)
+                            </div>
+                        </div>
+                        <div style="text-align: center">
+                            <div
+                                style="
+                                    font-size: var(--font-size-xl);
+                                    font-weight: 800;
+                                    color: var(--text-tertiary);
+                                "
+                                x-text="form.skipped || 0"
+                            ></div>
+                            <div class="text-xs text-tertiary">⚫ Skipped</div>
                         </div>
                     </div>
-                </template>
-            </div>
-        </div>
-    </template>
 
-    <!-- Empty -->
-    <div x-show="!loading && forms.length === 0 && !analyzed" class="text-center py-16 text-gray-500">
-        <div class="text-4xl mb-3">🤖</div>
-        <p>Paste a job application URL to analyze its forms.</p>
-        <p class="text-sm mt-1">See which fields can be auto-filled from your profile.</p>
+                    <!-- Field List -->
+                    <template
+                        x-for="field in (form.fields || [])"
+                        :key="field.name"
+                    >
+                        <div class="field-row">
+                            <div>
+                                <div
+                                    style="
+                                        font-weight: 600;
+                                        font-size: var(--font-size-sm);
+                                    "
+                                    x-text="field.label || field.name"
+                                ></div>
+                                <div
+                                    class="text-xs text-tertiary"
+                                    x-text="field.name"
+                                ></div>
+                            </div>
+                            <div>
+                                <span
+                                    x-show="field.value && field.confidence >= 30"
+                                    style="
+                                        font-family: var(--font-mono);
+                                        font-size: var(--font-size-sm);
+                                    "
+                                    x-text="field.value || '—'"
+                                ></span>
+                                <span
+                                    x-show="!field.value || field.confidence < 30"
+                                    class="text-tertiary"
+                                    >Not filled</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: var(--space-2);
+                                "
+                            >
+                                <span
+                                    :class="'confidence-dot ' + confidenceClass(field.confidence)"
+                                ></span>
+                                <span
+                                    class="text-xs text-tertiary"
+                                    style="
+                                        font-family: var(--font-mono);
+                                        min-width: 36px;
+                                        text-align: right;
+                                    "
+                                    x-text="Math.round(field.confidence || 0) + '%'"
+                                ></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Idle State -->
+    <div
+        x-show="!analyzing && forms.length === 0 && !analyzed"
+        class="empty-state"
+    >
+        <div class="empty-icon">🤖</div>
+        <h3>Auto-Fill ready</h3>
+        <p>
+            Paste any job application URL — Greenhouse, Lever, Ashby, or generic
+            forms — and see which fields can be auto-filled from your profile.
+        </p>
+        <div
+            style="
+                margin-top: var(--space-4);
+                display: flex;
+                gap: var(--space-2);
+                justify-content: center;
+            "
+        >
+            <span class="badge badge-success">🟢 Auto-fill</span>
+            <span class="badge badge-warning">🟡 Review</span>
+            <span class="badge badge-danger">🔴 Manual</span>
+        </div>
+    </div>
+
+    <!-- Error -->
+    <div
+        x-show="error"
+        class="card"
+        style="border-color: var(--red); margin-top: var(--space-4)"
+    >
+        <div class="card-body" style="color: var(--red)">
+            <strong>Error:</strong> <span x-text="error"></span>
+        </div>
     </div>
 </div>
 
 <script>
-function autofillApp() {
-    return {
-        url: '',
-        loading: false,
-        analyzed: false,
-        forms: [],
+    function autofillApp() {
+        return {
+            url: "",
+            analyzing: false,
+            analyzed: false,
+            error: "",
+            forms: [],
 
-        async analyze() {
-            if (!this.url) return;
-            this.loading = true;
-            this.analyzed = true;
-            this.forms = [];
-            try {
-                const r = await fetch('/api/autofill/analyze', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url: this.url})
-                });
-                const data = await r.json();
-                this.forms = data.forms || [];
-            } catch(e) {
-                console.error(e);
-            }
-            this.loading = false;
-        }
+            async analyze() {
+                if (!this.url) {
+                    showToast("Enter a job application URL", "error");
+                    return;
+                }
+                this.analyzing = true;
+                this.analyzed = true;
+                this.error = "";
+                this.forms = [];
+
+                try {
+                    const resp = await fetch("/api/autofill/analyze", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url: this.url }),
+                    });
+                    const data = await resp.json();
+                    if (data.error) {
+                        this.error = data.error;
+                        showToast(data.error, "error");
+                    } else {
+                        this.forms = data.forms || [];
+                        // Calculate confidence stats
+                        this.forms.forEach((form) => {
+                            let high = 0,
+                                med = 0,
+                                low = 0,
+                                skipped = 0;
+                            (form.fields || []).forEach((f) => {
+                                if (f.confidence >= 80) high++;
+                                else if (f.confidence >= 50) med++;
+                                else if (f.confidence >= 30) low++;
+                                else skipped++;
+                            });
+                            form.high_confidence = high;
+                            form.medium_confidence = med;
+                            form.low_confidence = low;
+                            form.skipped = skipped;
+                            form.total_fields = (form.fields || []).length;
+                        });
+                        const totalFilled = this.forms.reduce(
+                            (s, f) =>
+                                s +
+                                (f.high_confidence || 0) +
+                                (f.medium_confidence || 0),
+                            0,
+                        );
+                        const totalFields = this.forms.reduce(
+                            (s, f) => s + (f.total_fields || 0),
+                            0,
+                        );
+                        showToast(
+                            `Analyzed ${totalFields} fields · ${totalFilled} auto-fillable`,
+                            "success",
+                        );
+                    }
+                } catch (e) {
+                    this.error = e.message;
+                    showToast("Analysis failed: " + e.message, "error");
+                } finally {
+                    this.analyzing = false;
+                }
+            },
+
+            confidenceClass(c) {
+                if (c >= 80) return "high";
+                if (c >= 50) return "medium";
+                if (c >= 30) return "low";
+                return "none";
+            },
+
+            liveFill() {
+                showToast(
+                    "Live fill requires spider job fill --live command",
+                    "info",
+                );
+            },
+
+            copyScript() {
+                showToast("Script generation coming soon", "info");
+            },
+        };
     }
-}
 </script>
 {% endblock %}

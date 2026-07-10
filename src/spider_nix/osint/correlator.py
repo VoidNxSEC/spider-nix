@@ -106,7 +106,9 @@ class IntelligenceGraph:
         """
         results = []
         for rel in self.relationships:
-            if (rel.source_id == entity_id or rel.target_id == entity_id) and (rel_type is None or rel.rel_type == rel_type):
+            if (rel.source_id == entity_id or rel.target_id == entity_id) and (
+                rel_type is None or rel.rel_type == rel_type
+            ):
                 results.append(rel)
         return results
 

@@ -1,45 +1,146 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spider-Nix — Job Hunt</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <style>
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-        .conf-high { border-left: 3px solid #22c55e; }
-        .conf-medium { border-left: 3px solid #eab308; }
-        .conf-low { border-left: 3px solid #ef4444; }
-    </style>
-</head>
-<body class="bg-gray-900 text-gray-100 min-h-screen">
-    <!-- Navbar -->
-    <nav class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4">
-            <div class="flex items-center justify-between h-14">
-                <div class="flex items-center gap-2">
-                    <span class="text-xl">🕷️</span>
-                    <span class="font-bold text-lg">Spider-Nix</span>
+<!doctype html>
+<html lang="en" class="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Spider-Nix — {% block title %}JobOps{% endblock %}</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="/static/css/app.css" />
+        <script
+            defer
+            src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+        ></script>
+        {% block head %}{% endblock %}
+    </head>
+    <body>
+        <div class="app-shell">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-brand">
+                    <a
+                        href="/"
+                        style="
+                            text-decoration: none;
+                            display: flex;
+                            align-items: center;
+                            gap: var(--space-3);
+                        "
+                    >
+                        <div class="logo">🕷️</div>
+                        <div>
+                            <div class="brand-text">Spider-Nix</div>
+                            <div class="version">v0.4.0 · Nocturne</div>
+                        </div>
+                    </a>
                 </div>
-                <div class="flex gap-1">
-                    <a href="/" class="px-3 py-2 rounded text-sm font-medium hover:bg-gray-700 transition-colors {{ 'bg-gray-700' if request.url.path == '/' else '' }}">🔍 Hunt</a>
-                    <a href="/pipeline" class="px-3 py-2 rounded text-sm font-medium hover:bg-gray-700 transition-colors {{ 'bg-gray-700' if request.url.path == '/pipeline' else '' }}">📊 Pipeline</a>
-                    <a href="/autofill" class="px-3 py-2 rounded text-sm font-medium hover:bg-gray-700 transition-colors {{ 'bg-gray-700' if request.url.path == '/autofill' else '' }}">🤖 Auto-fill</a>
-                    <a href="/profile" class="px-3 py-2 rounded text-sm font-medium hover:bg-gray-700 transition-colors {{ 'bg-gray-700' if request.url.path == '/profile' else '' }}">👤 Profile</a>
+
+                <nav class="sidebar-nav">
+                    <a
+                        href="/"
+                        class="nav-item {{ 'active' if request.url.path == '/' else '' }}"
+                    >
+                        <span class="icon">🔍</span> Hunt
+                    </a>
+                    <a
+                        href="/pipeline"
+                        class="nav-item {{ 'active' if request.url.path == '/pipeline' else '' }}"
+                    >
+                        <span class="icon">📊</span> Pipeline
+                    </a>
+                    <a
+                        href="/autofill"
+                        class="nav-item {{ 'active' if request.url.path == '/autofill' else '' }}"
+                    >
+                        <span class="icon">🤖</span> Auto-fill
+                    </a>
+                    <a
+                        href="/profile"
+                        class="nav-item {{ 'active' if request.url.path == '/profile' else '' }}"
+                    >
+                        <span class="icon">👤</span> Profile
+                    </a>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div
+                        class="text-xs text-tertiary"
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: var(--space-2);
+                        "
+                    >
+                        <span
+                            style="
+                                width: 6px;
+                                height: 6px;
+                                background: var(--accent);
+                                border-radius: 50%;
+                                display: inline-block;
+                            "
+                        ></span>
+                        Ready
+                    </div>
                 </div>
-            </div>
+            </aside>
+
+            <!-- Main -->
+            <main class="main-content">{% block content %}{% endblock %}</main>
         </div>
-    </nav>
 
-    <!-- Content -->
-    <main class="max-w-7xl mx-auto px-4 py-6">
-        {% block content %}{% endblock %}
-    </main>
+        <!-- Toast container -->
+        <div id="toast-container" class="toast-container"></div>
 
-    <!-- Toast container -->
-    <div id="toast" class="fixed bottom-4 right-4 z-50 hidden bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 shadow-lg"></div>
-</body>
+        <script>
+            // ── Global Toast System ───────────────────────────────────────────
+            window.showToast = function (
+                message,
+                type = "info",
+                duration = 4000,
+            ) {
+                const container = document.getElementById("toast-container");
+                const toast = document.createElement("div");
+                const icons = { success: "✓", error: "✗", info: "ℹ" };
+                toast.className = `toast toast-${type}`;
+                toast.innerHTML = `
+            <span style="font-weight:700;font-size:1rem;">${icons[type] || "ℹ"}</span>
+            <span style="flex:1;font-size:var(--font-size-sm);">${message}</span>
+        `;
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.classList.add("removing");
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            };
+
+            // ── Confetti for celebrations ────────────────────────────────────
+            window.celebrate = function () {
+                const colors = [
+                    "#10b981",
+                    "#34d399",
+                    "#60a5fa",
+                    "#a78bfa",
+                    "#f59e0b",
+                    "#fb923c",
+                ];
+                for (let i = 0; i < 40; i++) {
+                    const piece = document.createElement("div");
+                    piece.className = "confetti-piece";
+                    piece.style.left = Math.random() * 100 + "%";
+                    piece.style.background =
+                        colors[Math.floor(Math.random() * colors.length)];
+                    piece.style.animationDelay = Math.random() * 2 + "s";
+                    piece.style.animationDuration = 2 + Math.random() * 3 + "s";
+                    document.body.appendChild(piece);
+                    setTimeout(() => piece.remove(), 5000);
+                }
+            };
+        </script>
+        {% block scripts %}{% endblock %}
+    </body>
 </html>

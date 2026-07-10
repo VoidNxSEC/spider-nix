@@ -1,128 +1,600 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "base.html" %} {% block title %}Profile{% endblock %} {% block
+content %}
 <div x-data="profileApp()" x-init="load()">
-    <h1 class="text-2xl font-bold mb-6">👤 Profile</h1>
+    <div class="page-header">
+        <h1>Profile</h1>
+        <p>
+            Your professional profile powers the matching engine and auto-fill
+            system.
+        </p>
+    </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Skills & Preferences -->
-        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 class="font-bold mb-3 text-gray-300">Skills & Preferences</h2>
-
-            <label class="block text-xs text-gray-400 mb-1">Skills (comma-separated)</label>
-            <input x-model="profile.skills_str" @change="syncSkills()"
-                   placeholder="python, rust, nix, kubernetes..."
-                   class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm mb-3">
-
-            <label class="block text-xs text-gray-400 mb-1">Desired Titles</label>
-            <input x-model="profile.titles_str" @change="syncTitles()"
-                   placeholder="Platform Engineer, SRE, Backend..."
-                   class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm mb-3">
-
-            <label class="block text-xs text-gray-400 mb-1">Remote Preference</label>
-            <select x-model="profile.preferred_remote" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm mb-3">
-                <option value="any">Any</option>
-                <option value="remote_only">Remote Only</option>
-                <option value="remote_preferred">Remote Preferred</option>
-                <option value="hybrid_ok">Hybrid OK</option>
-            </select>
-
-            <div class="grid grid-cols-2 gap-3">
+    <div
+        style="
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-6);
+        "
+    >
+        <!-- Personal Info -->
+        <div class="card">
+            <div class="card-header">
+                <h2>👤 Personal</h2>
+            </div>
+            <div
+                class="card-body"
+                style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--space-3);
+                "
+            >
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">Min Salary</label>
-                    <input x-model="profile.min_salary" type="number"
-                           class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+                    <label
+                        class="text-xs text-secondary"
+                        style="
+                            display: block;
+                            margin-bottom: var(--space-1);
+                            font-weight: 600;
+                        "
+                        >Skills</label
+                    >
+                    <input
+                        x-model="profile.skills_str"
+                        @change="syncSkills()"
+                        placeholder="python, rust, nix, kubernetes, terraform..."
+                        class="input"
+                    />
+                    <div
+                        style="
+                            display: flex;
+                            gap: 4px;
+                            flex-wrap: wrap;
+                            margin-top: var(--space-2);
+                        "
+                        id="skill-tags"
+                    >
+                        <template x-for="(skill, i) in profile.skills" :key="i">
+                            <span
+                                class="badge badge-success"
+                                style="cursor: pointer"
+                                @click="removeSkill(i)"
+                                :data-tooltip="'Click to remove'"
+                            >
+                                <span x-text="skill"></span> ×
+                            </span>
+                        </template>
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">Currency</label>
-                    <select x-model="profile.preferred_currency" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
-                        <option value="USD">USD</option>
-                        <option value="EUR">EUR</option>
-                        <option value="BRL">BRL</option>
-                        <option value="GBP">GBP</option>
-                    </select>
+                    <label
+                        class="text-xs text-secondary"
+                        style="
+                            display: block;
+                            margin-bottom: var(--space-1);
+                            font-weight: 600;
+                        "
+                        >Desired Titles</label
+                    >
+                    <input
+                        x-model="profile.titles_str"
+                        @change="syncTitles()"
+                        placeholder="Platform Engineer, SRE, Staff Engineer..."
+                        class="input"
+                    />
+                </div>
+                <div
+                    style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: var(--space-3);
+                    "
+                >
+                    <div>
+                        <label
+                            class="text-xs text-secondary"
+                            style="
+                                display: block;
+                                margin-bottom: var(--space-1);
+                                font-weight: 600;
+                            "
+                            >Experience</label
+                        >
+                        <input
+                            x-model="profile.years_experience"
+                            type="number"
+                            placeholder="5"
+                            class="input"
+                            min="0"
+                            step="0.5"
+                        />
+                    </div>
+                    <div>
+                        <label
+                            class="text-xs text-secondary"
+                            style="
+                                display: block;
+                                margin-bottom: var(--space-1);
+                                font-weight: 600;
+                            "
+                            >Seniority</label
+                        >
+                        <select
+                            x-model="profile.current_seniority"
+                            class="select"
+                            style="width: 100%"
+                        >
+                            <option value="unknown">— Select —</option>
+                            <option value="junior">Junior</option>
+                            <option value="mid">Mid-level</option>
+                            <option value="senior">Senior</option>
+                            <option value="staff">Staff</option>
+                            <option value="lead">Lead / Principal</option>
+                        </select>
+                    </div>
                 </div>
             </div>
-
-            <button @click="save()" class="mt-4 bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm font-bold w-full">
-                💾 Save Profile
-            </button>
         </div>
 
-        <!-- Resume Upload -->
-        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 class="font-bold mb-3 text-gray-300">Quick Start: Upload Resume</h2>
-            <p class="text-sm text-gray-400 mb-4">Upload your resume (PDF, DOCX, TXT) and we'll auto-extract your skills, experience, and contact info.</p>
-
-            <div class="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center mb-4">
-                <div class="text-3xl mb-2">📄</div>
-                <p class="text-sm text-gray-400">Drag & drop or click to upload</p>
-                <input type="file" accept=".pdf,.docx,.txt" class="hidden" id="resumeInput">
-                <button onclick="document.getElementById('resumeInput').click()"
-                        class="mt-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm">
-                    Choose File
-                </button>
+        <!-- Preferences -->
+        <div class="card">
+            <div class="card-header">
+                <h2>⚙️ Preferences</h2>
             </div>
-            <p class="text-xs text-gray-600">Or use CLI: spider job profile --from-resume curriculo.pdf</p>
+            <div
+                class="card-body"
+                style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--space-3);
+                "
+            >
+                <div
+                    style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: var(--space-3);
+                    "
+                >
+                    <div>
+                        <label
+                            class="text-xs text-secondary"
+                            style="
+                                display: block;
+                                margin-bottom: var(--space-1);
+                                font-weight: 600;
+                            "
+                            >Remote Policy</label
+                        >
+                        <select
+                            x-model="profile.preferred_remote"
+                            class="select"
+                            style="width: 100%"
+                        >
+                            <option value="any">📍 Any</option>
+                            <option value="remote_only">🏠 Remote Only</option>
+                            <option value="remote_preferred">
+                                🏠 Remote Preferred
+                            </option>
+                            <option value="hybrid_ok">🏢 Hybrid OK</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            class="text-xs text-secondary"
+                            style="
+                                display: block;
+                                margin-bottom: var(--space-1);
+                                font-weight: 600;
+                            "
+                            >Min Salary</label
+                        >
+                        <input
+                            x-model="profile.min_salary"
+                            type="number"
+                            placeholder="120000"
+                            class="input"
+                            min="0"
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label
+                        class="text-xs text-secondary"
+                        style="
+                            display: block;
+                            margin-bottom: var(--space-1);
+                            font-weight: 600;
+                        "
+                        >Preferred Locations</label
+                    >
+                    <input
+                        x-model="profile.locations_str"
+                        @change="syncLocations()"
+                        placeholder="São Paulo, New York, Remote..."
+                        class="input"
+                    />
+                </div>
+                <div>
+                    <label
+                        class="text-xs text-secondary"
+                        style="
+                            display: block;
+                            margin-bottom: var(--space-1);
+                            font-weight: 600;
+                        "
+                        >Target Companies</label
+                    >
+                    <input
+                        x-model="profile.companies_str"
+                        @change="syncCompanies()"
+                        placeholder="Stripe, Datadog, Vercel..."
+                        class="input"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <!-- Resume -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📄 Resume</h2>
+            </div>
+            <div
+                class="card-body"
+                style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--space-4);
+                "
+            >
+                <p class="text-sm text-secondary">
+                    Upload your resume to auto-extract skills, experience, and
+                    contact info.
+                </p>
+                <div
+                    style="
+                        border: 2px dashed var(--border-default);
+                        border-radius: var(--radius-lg);
+                        padding: var(--space-8);
+                        text-align: center;
+                        transition: border-color var(--duration-fast);
+                    "
+                    @dragover.prevent
+                    @drop.prevent="uploadResume($event)"
+                    @dragenter="$el.style.borderColor='var(--accent)'"
+                    @dragleave="$el.style.borderColor='var(--border-default)'"
+                >
+                    <div
+                        class="empty-icon"
+                        style="font-size: 2rem; margin-bottom: var(--space-2)"
+                    >
+                        📤
+                    </div>
+                    <p class="text-sm text-secondary">
+                        Drop PDF, DOCX, or TXT here
+                    </p>
+                    <p
+                        class="text-xs text-tertiary"
+                        style="margin-top: var(--space-1)"
+                    >
+                        or
+                    </p>
+                    <label
+                        class="btn btn-secondary btn-sm"
+                        style="margin-top: var(--space-2); cursor: pointer"
+                    >
+                        Browse files
+                        <input
+                            type="file"
+                            @change="uploadResume($event)"
+                            accept=".pdf,.docx,.txt"
+                            hidden
+                        />
+                    </label>
+                </div>
+                <div
+                    x-show="resumeData"
+                    style="
+                        background: var(--bg-elevated);
+                        border-radius: var(--radius-md);
+                        padding: var(--space-4);
+                    "
+                >
+                    <div
+                        class="text-sm"
+                        style="font-weight: 600; margin-bottom: var(--space-2)"
+                    >
+                        Extracted Data
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: var(--space-1);
+                        "
+                    >
+                        <template x-for="(val, key) in resumeData" :key="key">
+                            <span
+                                class="badge badge-success"
+                                x-text="key + ': ' + val"
+                            ></span>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card" style="border-color: var(--red); border-opacity: 0.3">
+            <div class="card-header">
+                <h2 style="color: var(--red)">⚠️ Danger Zone</h2>
+            </div>
+            <div
+                class="card-body"
+                style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--space-4);
+                "
+            >
+                <p class="text-sm text-secondary">
+                    These actions cannot be undone. Export your data first.
+                </p>
+                <div style="display: flex; gap: var(--space-2)">
+                    <button
+                        @click="exportProfile()"
+                        class="btn btn-secondary btn-sm"
+                    >
+                        📋 Export Profile
+                    </button>
+                    <button
+                        @click="importProfile()"
+                        class="btn btn-secondary btn-sm"
+                    >
+                        📥 Import Profile
+                    </button>
+                    <button
+                        @click="resetProfile()"
+                        class="btn btn-danger btn-sm"
+                    >
+                        🗑 Reset All Data
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Current Profile Summary -->
-    <div x-show="saved" class="mt-6 bg-green-900/30 border border-green-700 rounded-lg p-4">
-        <span class="text-green-400">✅ Profile saved!</span>
-        <span class="text-sm text-gray-400 ml-2">Skills, titles, and preferences updated.</span>
+    <!-- Save -->
+    <div
+        style="
+            margin-top: var(--space-6);
+            display: flex;
+            gap: var(--space-3);
+            align-items: center;
+        "
+    >
+        <button
+            @click="save()"
+            :disabled="saving"
+            class="btn btn-primary btn-lg"
+        >
+            <span x-show="!saving">💾 Save Profile</span>
+            <span x-show="saving">Saving...</span>
+        </button>
+        <span x-show="saved" class="text-accent text-sm" x-transition
+            >✓ Profile saved</span
+        >
     </div>
 </div>
 
 <script>
-function profileApp() {
-    return {
-        profile: {
-            skills_str: '',
-            titles_str: '',
-            preferred_remote: 'any',
-            min_salary: null,
-            preferred_currency: 'USD',
-            skills: [],
-            desired_titles: [],
-        },
-        saved: false,
+    function profileApp() {
+        return {
+            profile: {
+                skills: [],
+                skills_str: "",
+                titles_str: "",
+                desired_titles: [],
+                years_experience: 0,
+                current_seniority: "unknown",
+                preferred_remote: "any",
+                min_salary: null,
+                locations_str: "",
+                preferred_locations: [],
+                companies_str: "",
+                target_companies: [],
+                preferred_currency: "USD",
+            },
+            saving: false,
+            saved: false,
+            resumeData: null,
 
-        async load() {
-            try {
-                const r = await fetch('/api/profile');
-                const data = await r.json();
-                if (data.profile) {
-                    const p = data.profile;
-                    this.profile.skills_str = (p.skills || []).join(', ');
-                    this.profile.titles_str = (p.desired_titles || []).join(', ');
-                    this.profile.preferred_remote = p.preferred_remote || 'any';
-                    this.profile.min_salary = p.min_salary;
-                    this.profile.preferred_currency = p.preferred_currency || 'USD';
-                    this.profile.skills = p.skills || [];
-                    this.profile.desired_titles = p.desired_titles || [];
+            async load() {
+                try {
+                    const r = await fetch("/api/profile");
+                    const data = await r.json();
+                    if (data.profile) {
+                        const p = data.profile;
+                        this.profile.skills = p.skills || [];
+                        this.profile.skills_str =
+                            this.profile.skills.join(", ");
+                        this.profile.desired_titles = p.desired_titles || [];
+                        this.profile.titles_str =
+                            this.profile.desired_titles.join(", ");
+                        this.profile.years_experience = p.years_experience || 0;
+                        this.profile.current_seniority =
+                            p.current_seniority || "unknown";
+                        this.profile.preferred_remote =
+                            p.preferred_remote || "any";
+                        this.profile.min_salary = p.min_salary || null;
+                        this.profile.preferred_locations =
+                            p.preferred_locations || [];
+                        this.profile.locations_str =
+                            this.profile.preferred_locations.join(", ");
+                        this.profile.target_companies =
+                            p.target_companies || [];
+                        this.profile.companies_str =
+                            this.profile.target_companies.join(", ");
+                        this.profile.preferred_currency =
+                            p.preferred_currency || "USD";
+                    }
+                } catch (e) {
+                    console.error(e);
                 }
-            } catch(e) { console.error(e); }
-        },
+            },
 
-        syncSkills() {
-            this.profile.skills = this.profile.skills_str.split(',').map(s => s.trim()).filter(Boolean);
-        },
-        syncTitles() {
-            this.profile.desired_titles = this.profile.titles_str.split(',').map(s => s.trim()).filter(Boolean);
-        },
+            syncSkills() {
+                this.profile.skills = this.profile.skills_str
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+            },
 
-        async save() {
-            this.syncSkills();
-            this.syncTitles();
-            await fetch('/api/profile', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(this.profile)
-            });
-            this.saved = true;
-            setTimeout(() => this.saved = false, 3000);
-        }
+            syncTitles() {
+                this.profile.desired_titles = this.profile.titles_str
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+            },
+
+            syncLocations() {
+                this.profile.preferred_locations = this.profile.locations_str
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+            },
+
+            syncCompanies() {
+                this.profile.target_companies = this.profile.companies_str
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+            },
+
+            removeSkill(i) {
+                this.profile.skills.splice(i, 1);
+                this.profile.skills_str = this.profile.skills.join(", ");
+            },
+
+            async save() {
+                this.syncSkills();
+                this.syncTitles();
+                this.syncLocations();
+                this.syncCompanies();
+                this.saving = true;
+                this.saved = false;
+                try {
+                    await fetch("/api/profile", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            skills: this.profile.skills,
+                            desired_titles: this.profile.desired_titles,
+                            years_experience:
+                                parseFloat(this.profile.years_experience) || 0,
+                            current_seniority: this.profile.current_seniority,
+                            preferred_remote: this.profile.preferred_remote,
+                            min_salary: this.profile.min_salary
+                                ? parseFloat(this.profile.min_salary)
+                                : null,
+                            preferred_locations:
+                                this.profile.preferred_locations,
+                            target_companies: this.profile.target_companies,
+                            preferred_currency: this.profile.preferred_currency,
+                        }),
+                    });
+                    this.saved = true;
+                    showToast("Profile saved successfully", "success");
+                    setTimeout(() => {
+                        this.saved = false;
+                    }, 3000);
+                } catch (e) {
+                    showToast("Failed to save profile: " + e.message, "error");
+                } finally {
+                    this.saving = false;
+                }
+            },
+
+            async uploadResume(e) {
+                const file = e.dataTransfer
+                    ? e.dataTransfer.files[0]
+                    : e.target.files[0];
+                if (!file) return;
+                showToast(
+                    "Resume upload via API coming soon. Use: spider job profile --from-resume",
+                    "info",
+                );
+            },
+
+            exportProfile() {
+                this.syncSkills();
+                this.syncTitles();
+                this.syncLocations();
+                this.syncCompanies();
+                const blob = new Blob([JSON.stringify(this.profile, null, 2)], {
+                    type: "application/json",
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "spider-profile.json";
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast("Profile exported", "success");
+            },
+
+            importProfile() {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = ".json";
+                input.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    this.profile.skills = data.skills || [];
+                    this.profile.skills_str = this.profile.skills.join(", ");
+                    this.profile.desired_titles = data.desired_titles || [];
+                    this.profile.titles_str =
+                        this.profile.desired_titles.join(", ");
+                    this.profile.min_salary = data.min_salary;
+                    this.profile.preferred_remote =
+                        data.preferred_remote || "any";
+                    this.profile.current_seniority =
+                        data.current_seniority || "unknown";
+                    await this.save();
+                    showToast("Profile imported and saved", "success");
+                };
+                input.click();
+            },
+
+            resetProfile() {
+                if (
+                    confirm(
+                        "Delete all profile data? This cannot be undone. Export your data first.",
+                    )
+                ) {
+                    this.profile = {
+                        skills: [],
+                        skills_str: "",
+                        titles_str: "",
+                        desired_titles: [],
+                        years_experience: 0,
+                        current_seniority: "unknown",
+                        preferred_remote: "any",
+                        min_salary: null,
+                        locations_str: "",
+                        preferred_locations: [],
+                        companies_str: "",
+                        target_companies: [],
+                        preferred_currency: "USD",
+                    };
+                    this.save();
+                    showToast("Profile reset", "info");
+                }
+            },
+        };
     }
-}
 </script>
 {% endblock %}

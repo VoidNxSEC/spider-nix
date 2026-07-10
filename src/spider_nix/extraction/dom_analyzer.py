@@ -5,7 +5,6 @@ Extracts all interactive elements from HTML with their bounding boxes,
 generating XPath and CSS selectors for reliable element targeting.
 """
 
-
 from lxml import html
 
 from .models import BoundingBox, DOMElement

@@ -200,7 +200,9 @@ class BrowserCrawler:
                         if follow_links and result.status_code == 200:
                             links = await self._extract_links(page, url)
                             for link in links:
-                                if link not in visited and (link_filter is None or link_filter(link)):
+                                if link not in visited and (
+                                    link_filter is None or link_filter(link)
+                                ):
                                     queue.append(link)
 
                         # Human-like delay
