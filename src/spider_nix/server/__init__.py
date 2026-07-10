@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="Spider-Nix", version="0.3.0")
+app = FastAPI(title="Spider-Nix", version="0.4.0")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 if STATIC_DIR.exists():

@@ -620,9 +620,7 @@ def recon_dns(
     nameservers: str | None = typer.Option(
         None, "--nameservers", "-n", help="Custom DNS servers (comma-separated)"
     ),
-    reverse: str | None = typer.Option(
-        None, "--reverse", "-r", help="Reverse DNS lookup for IP"
-    ),
+    reverse: str | None = typer.Option(None, "--reverse", "-r", help="Reverse DNS lookup for IP"),
 ):
     """Perform DNS enumeration."""
 
@@ -2246,9 +2244,7 @@ def job_track(
 @app.command("job-profile")
 def job_profile(
     db: Path = typer.Option("jobs.db", "--db", "-d", help="SQLite database path"),
-    skills: str | None = typer.Option(
-        None, "--skills", "-s", help="Your skills (comma-separated)"
-    ),
+    skills: str | None = typer.Option(None, "--skills", "-s", help="Your skills (comma-separated)"),
     titles: str | None = typer.Option(None, "--titles", "-t", help="Desired job titles"),
     remote: str | None = typer.Option(None, "--remote", "-r", help="Remote preference"),
     min_salary: float | None = typer.Option(None, "--min-salary", help="Minimum salary"),
@@ -2572,9 +2568,7 @@ if __name__ == "__main__":
 def multimodal_extract(
     url: str = typer.Argument(..., help="Target URL"),
     output: Path = typer.Option("extraction.json", "--output", "-o", help="Output JSON file"),
-    screenshot: Path | None = typer.Option(
-        None, "--screenshot", "-s", help="Save screenshot path"
-    ),
+    screenshot: Path | None = typer.Option(None, "--screenshot", "-s", help="Save screenshot path"),
     headless: bool = typer.Option(True, "--headless", help="Run browser headless"),
     use_proxy: bool = typer.Option(True, "--proxy", help="Use network OPSEC proxy"),
     vision_model: str = typer.Option(

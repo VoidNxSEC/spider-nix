@@ -139,7 +139,9 @@ class SpiderNix:
                         if follow_links and result.status_code == 200:
                             links = self._extract_links(result.content, url)
                             for link in links:
-                                if link not in self._visited and (link_filter is None or link_filter(link)):
+                                if link not in self._visited and (
+                                    link_filter is None or link_filter(link)
+                                ):
                                     await self._queue.put(link)
 
                 finally:

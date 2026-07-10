@@ -186,7 +186,11 @@ class GreenhouseScraper(BaseATSScraper):
         metadata = job.get("metadata", [])
         desc_parts = []
         for m in metadata:
-            if m.get("name") == "Job Description" or m.get("name") == "Responsibilities" or m.get("name") == "Requirements":
+            if (
+                m.get("name") == "Job Description"
+                or m.get("name") == "Responsibilities"
+                or m.get("name") == "Requirements"
+            ):
                 desc_parts.append(m.get("value", ""))
 
         description = "\n\n".join(desc_parts)

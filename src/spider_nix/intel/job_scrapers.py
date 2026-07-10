@@ -157,9 +157,7 @@ class RemoteOKScraper:
                 epoch = item.get("epoch", item.get("date"))
                 if epoch:
                     with contextlib.suppress(ValueError, TypeError):
-                        date_posted = datetime.fromtimestamp(
-                            int(epoch), tz=UTC
-                        ).isoformat()
+                        date_posted = datetime.fromtimestamp(int(epoch), tz=UTC).isoformat()
 
                 full_text = f"{title} {description} {' '.join(tags)}"
 
