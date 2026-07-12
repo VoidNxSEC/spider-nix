@@ -1,0 +1,200 @@
+name: Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  discussions: write
+  packages: write
+
+jobs:
+  changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      changelog: ${{ steps.changelog.outputs.content }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v4
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+          sinceTag: ${{ github.event.before }}
+          outputToFile: true
+
+      - name: Upload changelog
+        uses: actions/upload-artifact@v7
+        with:
+          name: changelog
+          path: CHANGELOG.md
+          retention-days: 30
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download changelog
+        uses: actions/download-artifact@v7
+        with:
+          name: changelog
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: Spider-Nix ${{ github.ref_name }}
+          bodyFile: CHANGELOG.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          makeLatest: true
+          artifacts: "dist/*,*.tar.gz,*.whl"
+          artifactErrorsFailBuild: false
+
+  build-assets:
+    name: Build Release Assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install build tools
+        run: pip install build hatchling
+
+      - name: Build distribution packages
+        run: python -m build
+
+      - name: Create release bundle
+        run: |
+          mkdir -p release-bundle
+          cp dist/* release-bundle/
+          cp README.md LICENSE release-bundle/
+          
+          # Create checksums
+          cd release-bundle
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-bundle
+          path: release-bundle/
+          retention-days: 30
+
+  update-docs:
+    name: Update Documentation
+    needs: create-github-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install documentation tools
+        run: pip install mkdocs-material mkdocs-minify-plugin
+
+      - name: Update version in docs
+        run: |
+          VERSION=${{ github.ref_name }}
+          # Update version references in documentation
+          sed -i "s/version = .*/version = \"$VERSION\"/" docs/mkdocs.yml 2>/dev/null || true
+          sed -i "s/spider-nix .*/spider-nix $VERSION/" README.md 2>/dev/null || true
+
+      - name: Build documentation
+        run: |
+          cd docs || exit 0
+          mkdocs build --clean || true
+
+      - name: Commit docs update
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add docs/ README.md
+          git diff --cached --quiet || git commit -m "docs: update version references for ${{ github.ref_name }}"
+          git push || echo "No changes to push"
+
+  create-discussion:
+    name: Create Release Discussion
+    needs: create-github-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create discussion
+        uses: peter-evans/create-or-update-discussion@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          category-name: "Releases"
+          title: "Release ${{ github.ref_name }} - Discussion"
+          body: |
+            # Spider-Nix ${{ github.ref_name }} Release Discussion
+            
+            Please share your feedback, issues, or questions about this release.
+            
+            ## What's New
+            
+            See the full release notes: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+            
+            ## Download
+            
+            **PyPI:**
+            ```bash
+            pip install --upgrade spider-nix==${{ github.ref_name }}
+            ```
+            
+            **Docker:**
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ```
+            
+            **Source:**
+            - [Tarball](${{ github.server_url }}/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.tar.gz)
+            - [Zip](${{ github.server_url }}/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.zip)
+
+  notify:
+    name: Release Notification
+    needs: [changelog, create-github-release, build-assets, update-docs]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Release ${{ github.ref_name }} Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Changelog: ${{ needs.changelog.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- GitHub Release: ${{ needs.create-github-release.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Build Assets: ${{ needs.build-assets.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Update Docs: ${{ needs.update-docs.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Download Links:" >> $GITHUB_STEP_SUMMARY
+          echo "- [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+          echo "- PyPI: spider-nix==${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker: ghcr.io/${{ github.repository }}:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.create-github-release.result }}" = "success" ]; then
+            echo "✅ Release ${{ github.ref_name }} published successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  Some release tasks had issues. Check the logs." >> $GITHUB_STEP_SUMMARY
+          fi

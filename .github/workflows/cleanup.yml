@@ -1,0 +1,259 @@
+name: Cleanup
+
+on:
+  schedule:
+    # Run every Sunday at 03:00 UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  packages: write
+
+jobs:
+  cleanup-artifacts:
+    name: Cleanup Old Artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete old artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // List all artifacts
+            const { data: artifacts } = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            const now = new Date();
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            
+            // Filter artifacts older than 30 days (except latest workflow runs)
+            const oldArtifacts = artifacts.artifacts.filter(artifact => {
+              const created = new Date(artifact.created_at);
+              // Keep artifacts from the last 30 days
+              if (created > thirtyDaysAgo) return false;
+              
+              // Keep artifacts from successful workflows that might be needed
+              if (artifact.name.includes('pypi-packages') || 
+                  artifact.name.includes('python-package')) {
+                return false; // Keep release artifacts
+              }
+              
+              return true;
+            });
+            
+            console.log(`Found ${oldArtifacts.length} artifacts to clean up`);
+            
+            // Delete old artifacts
+            for (const artifact of oldArtifacts) {
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+                console.log(`Deleted artifact ${artifact.id}: ${artifact.name}`);
+              } catch (error) {
+                console.log(`Failed to delete artifact ${artifact.id}: ${error.message}`);
+              }
+            }
+
+  cleanup-workflow-runs:
+    name: Cleanup Old Workflow Runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete old workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            const now = new Date();
+            const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            
+            const oldRuns = runs.workflow_runs.filter(run => {
+              const created = new Date(run.created_at);
+              return created < ninetyDaysAgo && run.status !== 'in_progress';
+            });
+            
+            console.log(`Found ${oldRuns.length} workflow runs older than 90 days`);
+            
+            for (const run of oldRuns) {
+              try {
+                await github.rest.actions.deleteWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id
+                });
+                console.log(`Deleted workflow run ${run.id}`);
+              } catch (error) {
+                console.log(`Failed to delete workflow run ${run.id}: ${error.message}`);
+              }
+            }
+
+  cleanup-docker-images:
+    name: Cleanup Old Docker Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get package info
+        id: package
+        run: |
+          PACKAGE=${{ github.repository }}
+          curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${PACKAGE}/versions?per_page=100" \
+            -o versions.json
+          
+          # Count versions
+          COUNT=$(python -c "import json; data=json.load(open('versions.json')); print(len(data))" 2>/dev/null || echo "0")
+          echo "total_versions=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Delete old untagged images
+        if: steps.package.outputs.total_versions > 50
+        run: |
+          python << 'EOF'
+          import json
+          import os
+          import requests
+          from datetime import datetime, timedelta
+          
+          token = os.environ['GITHUB_TOKEN']
+          repo = os.environ['GITHUB_REPOSITORY']
+          org = repo.split('/')[0]
+          package = repo.split('/')[1]
+          
+          with open('versions.json') as f:
+              versions = json.load(f)
+          
+          now = datetime.utcnow()
+          thirty_days_ago = now - timedelta(days=30)
+          
+          deleted = 0
+          for version in versions:
+              # Skip tagged versions
+              if version.get('metadata', {}).get('container', {}).get('tags'):
+                  continue
+              
+              created = datetime.strptime(version['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+              if created < thirty_days_ago:
+                  version_id = version['id']
+                  url = f"https://api.github.com/orgs/{org}/packages/container/{package}/versions/{version_id}"
+                  response = requests.delete(
+                      url,
+                      headers={'Authorization': f'Bearer {token}'}
+                  )
+                  if response.status_code == 204:
+                      print(f"Deleted version {version_id} (created: {version['created_at']})")
+                      deleted += 1
+                  else:
+                      print(f"Failed to delete version {version_id}: {response.status_code}")
+          
+          print(f"\nTotal deleted: {deleted}")
+          EOF
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  cleanup-issues:
+    name: Cleanup Stale Issues
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Close stale issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+            
+            const now = new Date();
+            const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+            
+            const staleIssues = issues.filter(issue => {
+              const updated = new Date(issue.updated_at);
+              return updated < sixtyDaysAgo && !issue.pull_request;
+            });
+            
+            console.log(`Found ${staleIssues.length} stale issues`);
+            
+            for (const issue of staleIssues) {
+              // Check if issue has any recent comments
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number
+              });
+              
+              const recentComment = comments.find(comment => {
+                const created = new Date(comment.created_at);
+                return created > sixtyDaysAgo;
+              });
+              
+              if (!recentComment) {
+                try {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: ['stale']
+                  });
+                  
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: '@repo-owner This issue has been inactive for 60 days and will be closed in 7 days if no activity occurs. Please comment or update the issue to keep it open.'
+                  });
+                  
+                  console.log(`Marked issue #${issue.number} as stale`);
+                } catch (error) {
+                  console.log(`Failed to mark issue #${issue.number} as stale: ${error.message}`);
+                }
+              }
+            }
+
+  summary:
+    name: Cleanup Summary
+    needs: [cleanup-artifacts, cleanup-workflow-runs, cleanup-docker-images, cleanup-issues]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Cleanup Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Cleanup Artifacts: ${{ needs.cleanup-artifacts.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Cleanup Workflow Runs: ${{ needs.cleanup-workflow-runs.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Cleanup Docker Images: ${{ needs.cleanup-docker-images.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Cleanup Issues: ${{ needs.cleanup-issues.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.cleanup-artifacts.result }}" = "success" ] && \
+             [ "${{ needs.cleanup-workflow-runs.result }}" = "success" ]; then
+            echo "✅ Cleanup completed successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  Some cleanup tasks had issues" >> $GITHUB_STEP_SUMMARY
+          fi

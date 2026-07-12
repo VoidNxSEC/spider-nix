@@ -1,0 +1,98 @@
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache
+.coverage
+htmlcov/
+.tox/
+.nox/
+.eggs/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+.test_cache
+.pytest_cache
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+
+# Build
+build/
+dist/
+*.whl
+*.tar.gz
+
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Documentation
+docs/site/
+*.md
+
+# Docker
+Dockerfile
+docker-compose*
+
+# Nix
+.flake
+flake.lock
+flake.nix
+*.nix
+.venv
+
+# Misc
+*.log
+*.tmp
+*.temp
+.cache
+.cache/
+
+# Security
+*.enc
+*.env
+.env
+.env.*
+secrets/
+
+# Jobs database
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Screenshots
+screenshots/
+
+# Examples
+examples/
+
+# Network
+network/
+
+# Scripts
+scripts/
+
+# Configuration files that shouldn't be in image
+spider_config.json
+profile.toml

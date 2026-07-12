@@ -1,0 +1,157 @@
+name: CD - PyPI Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test-pypi-package:
+    name: Test PyPI Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install build tools
+        run: pip install build hatchling twine
+
+      - name: Build distribution packages
+        run: python -m build
+
+      - name: Verify package contents
+        run: |
+          # Extract and verify wheel
+          pip install dist/*.whl --force-reinstall --no-deps
+          spider-nix --version
+          spider --version
+          
+          # Check sdist
+          tar -tzf dist/*.tar.gz | grep -E "(README|LICENSE|src/spider_nix)" | head -10
+
+      - name: Store built packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: pypi-packages
+          path: dist/
+          retention-days: 1
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: test-pypi-package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/spider-nix/
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install twine
+        run: pip install twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/spider-nix/
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install twine
+        run: pip install twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  verify-pypi:
+    name: Verify PyPI Package
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Wait for package to be available
+        run: |
+          sleep 60  # Wait for PyPI to process the package
+
+      - name: Install from PyPI
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml'))['project']['version'])")
+          pip install --force-reinstall spider-nix==$VERSION
+
+      - name: Test installed package
+        run: |
+          spider-nix --version
+          spider --version
+          python -c "from spider_nix import cli; print('Import successful')"
+
+  notify:
+    name: Notify Release
+    needs: [publish-pypi, verify-pypi]
+    runs-on: ubuntu-latest
+    if: always() && (needs.publish-pypi.result == 'success' || needs.publish-pypi.result == 'failure')
+    steps:
+      - name: Generate release notes
+        run: |
+          echo "## PyPI Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.publish-pypi.result }}" = "success" ]; then
+            VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml'))['project']['version'])")
+            echo "✅ Successfully published spider-nix v$VERSION to PyPI" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Package URL: https://pypi.org/project/spider-nix/$VERSION/" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Install: pip install spider-nix==$VERSION" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Failed to publish to PyPI" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "TestPyPI: ${{ needs.publish-testpypi.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "Verification: ${{ needs.verify-pypi.result }}" >> $GITHUB_STEP_SUMMARY

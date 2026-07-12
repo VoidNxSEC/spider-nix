@@ -1,0 +1,228 @@
+name: CD - Docker Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-,format=short
+          flavor: |
+            latest=false
+          labels: |
+            org.opencontainers.image.title=spider-nix
+            org.opencontainers.image.description=Security Tooling - Job Search, OSINT, and Crawling
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=VoidNxSEC
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build and push (main/develop)
+        if: github.ref_type != 'tag'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push (tags)
+        if: github.ref_type == 'tag'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image digest
+        run: echo ${{ steps.build-and-push.outputs.digest || steps.build-and-push-tag.outputs.digest }}
+
+  scan-image:
+    name: Scan Docker Image
+    needs: build-docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        run: |
+          TAG=${{ needs.build-docker.result == 'success' && github.ref_type == 'tag' && format('{0}/{1}:{2}', env.REGISTRY, env.IMAGE_NAME, github.ref_name) || format('{0}/{1}:{2}', env.REGISTRY, env.IMAGE_NAME, github.sha) }}
+          docker pull $TAG
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: trivy-scan-report
+          path: trivy-results.sarif
+          retention-days: 30
+
+  verify-image:
+    name: Verify Docker Image
+    needs: build-docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and test image
+        run: |
+          TAG=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+          IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG
+          
+          echo "Pulling image: $IMAGE"
+          docker pull $IMAGE
+          
+          echo "Running container health check..."
+          docker run --rm $IMAGE python -c "import spider_nix; print('Import OK')"
+          
+          echo "Testing CLI commands..."
+          docker run --rm $IMAGE --version
+          docker run --rm $IMAGE --help | head -5
+          
+          echo "✅ Image verification successful"
+
+  deploy-docs:
+    name: Update Docker Usage Docs
+    needs: [build-docker, verify-image]
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Update Docker usage in README
+        run: |
+          VERSION=${{ github.ref_name }}
+          IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION
+          
+          # This would update documentation with the new image tag
+          echo "New Docker image available: $IMAGE"
+          echo "To use: docker pull $IMAGE"
+          
+          # For automated docs update, you could use sed or a script here
+          # Example: sed -i "s|image: .*|image: $IMAGE|" docs/docker.md
+
+  notify:
+    name: Notify Docker Release
+    needs: [build-docker, scan-image, verify-image]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Docker Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          TAG=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+          IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG
+          
+          echo "Image: $IMAGE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Build: ${{ needs.build-docker.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Scan: ${{ needs.scan-image.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify: ${{ needs.verify-image.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.build-docker.result }}" = "success" ]; then
+            echo "✅ Docker image published successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Pull command:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "docker pull $IMAGE" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ github.ref_type }}" = "tag" ]; then
+              echo "Also available as: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ Docker build failed" >> $GITHUB_STEP_SUMMARY
+          fi

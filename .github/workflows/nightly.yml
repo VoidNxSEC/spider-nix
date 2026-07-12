@@ -1,0 +1,302 @@
+name: Nightly Tests
+
+on:
+  schedule:
+    # Run every night at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-update-check:
+    name: Check for Dependency Updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install pip-outdated
+        run: pip install pip-outdated
+
+      - name: Check for outdated dependencies
+        id: outdated
+        run: |
+          pip install -e ".[dev]"
+          pip-outdated --format=json > outdated.json || true
+          
+          COUNT=$(python -c "import json; data=json.load(open('outdated.json')); print(len(data))" 2>/dev/null || echo "0")
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          
+          if [ "$COUNT" -gt 0 ]; then
+            echo "outdated=true" >> $GITHUB_OUTPUT
+          else
+            echo "outdated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload outdated report
+        uses: actions/upload-artifact@v7
+        if: steps.outdated.outputs.outdated == 'true'
+        with:
+          name: outdated-dependencies
+          path: outdated.json
+          retention-days: 30
+
+      - name: Create issue for outdated dependencies
+        if: steps.outdated.outputs.outdated == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('outdated.json', 'utf8'));
+            
+            const outdated = data.map(d => `- **${d.name}**: ${d.current} -> ${d.latest}`).join('\n');
+            
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'dependencies'
+            });
+            
+            const existingIssue = issues.find(i => i.title.includes('Dependency Updates Available'));
+            
+            const body = `## Dependency Updates Available\n\n${outdated}\n\n**Total:** ${data.length} packages can be updated.`;
+            
+            if (existingIssue) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingIssue.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Dependency Updates Available',
+                body: body,
+                labels: ['dependencies', 'enhancement']
+              });
+            }
+
+  security-scan:
+    name: Nightly Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install security tools
+        run: pip install bandit[toml] safety pip-audit
+
+      - name: Run comprehensive Bandit scan
+        run: |
+          bandit -r src/ -f json -o bandit-nightly.json -ii || true
+
+      - name: Run Safety check
+        run: safety check --json --output safety-nightly.json || true
+
+      - name: Run pip-audit
+        run: pip-audit --format json --output pip-audit-nightly.json || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-security-reports
+          path: |
+            bandit-nightly.json
+            safety-nightly.json
+            pip-audit-nightly.json
+          retention-days: 7
+
+  full-test-suite:
+    name: Full Test Suite (All Markers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Playwright browsers
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium firefox webkit
+
+      - name: Install all dependencies
+        run: pip install -e ".[dev,resume]"
+
+      - name: Run full test suite
+        run: |
+          pytest tests/ \
+            --cov=spider_nix \
+            --cov-report=xml \
+            --cov-report=term \
+            --junitxml=nightly-test-results.xml \
+            -v --tb=short \
+            -x
+        continue-on-error: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: nightly-test-results
+          path: |
+            nightly-test-results.xml
+            coverage.xml
+          retention-days: 7
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: nightly
+          name: spider-nix-nightly-coverage
+          fail_ci_if_error: false
+
+  integration-test:
+    name: Full Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Playwright browsers
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium firefox webkit
+
+      - name: Install all dependencies
+        run: pip install -e ".[dev,resume]"
+
+      - name: Run integration tests
+        run: |
+          pytest tests/ \
+            -m "integration" \
+            --cov=spider_nix \
+            --cov-report=xml \
+            --junitxml=integration-nightly-results.xml \
+            -v --tb=short \
+            -x
+        continue-on-error: true
+
+      - name: Upload integration results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: integration-nightly-results
+          path: integration-nightly-results.xml
+          retention-days: 7
+
+  performance-test:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run performance benchmarks
+        run: |
+          # Create a simple performance test
+          python -c "
+          import time
+          import sys
+          
+          # Import test
+          start = time.time()
+          from spider_nix import cli
+          import_time = time.time() - start
+          
+          print(f'Import time: {import_time:.3f}s')
+          
+          # Write results
+          with open('performance-results.txt', 'w') as f:
+              f.write(f'Import time: {import_time:.3f}s\n')
+              f.write(f'Python version: {sys.version}\n')
+          " || true
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v7
+        with:
+          name: performance-results
+          path: performance-results.txt
+          retention-days: 30
+
+  summary:
+    name: Nightly Summary
+    needs: [dependency-update-check, security-scan, full-test-suite, integration-test, performance-test]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate nightly summary
+        run: |
+          echo "## Nightly Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Dependency Check: ${{ needs.dependency-update-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security Scan: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Full Test Suite: ${{ needs.full-test-suite.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Tests: ${{ needs.integration-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance Tests: ${{ needs.performance-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count failures
+          FAILURES=0
+          ${{ needs.dependency-update-check.result != 'success' }} && FAILURES=$((FAILURES + 1))
+          ${{ needs.security-scan.result != 'success' }} && FAILURES=$((FAILURES + 1))
+          ${{ needs.full-test-suite.result != 'success' }} && FAILURES=$((FAILURES + 1))
+          ${{ needs.integration-test.result != 'success' }} && FAILURES=$((FAILURES + 1))
+          ${{ needs.performance-test.result != 'success' }} && FAILURES=$((FAILURES + 1))
+          
+          if [ "$FAILURES" -eq 0 ]; then
+            echo "✅ All nightly checks passed!" >> $GITHUB_STEP_SUMMARY
+          elif [ "$FAILURES" -lt 3 ]; then
+            echo "⚠️  $FAILURES nightly check(s) had issues" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ $FAILURES nightly checks failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Recommendations:" >> $GITHUB_STEP_SUMMARY
+          echo "- Review security scan reports for vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "- Check dependency updates if available" >> $GITHUB_STEP_SUMMARY
+          echo "- Investigate test failures" >> $GITHUB_STEP_SUMMARY
