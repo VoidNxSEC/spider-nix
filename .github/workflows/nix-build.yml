@@ -13,8 +13,8 @@ jobs:
   nix-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: NixOS/nix-installer-action@6b8548fe
+      - uses: actions/checkout@v7
+      - uses: NixOS/nix-installer-action@62c1943b776c509394b550f3f983adc14e9212d6
         with:
           extra-conf: |
             extra-substituters = https://cache.numtide.com
